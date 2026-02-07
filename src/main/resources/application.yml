@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: masjid-app-backend
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/masjid_app
+    username: ${DB_USERNAME:syedfardeen}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Flyway Configuration
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:Q2bI0hIuSeXGDTO1SaWmp6Scw1VaH/3zp0bxImJD85M=}
+  access-token-expiration: 1800000  # 30 minutes in milliseconds
+  refresh-token-expiration: 604800000  # 7 days in milliseconds
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.masjidapp: DEBUG
+    org.springframework.security: DEBUG

@@ -1,0 +1,3358 @@
+openapi: 3.0.3
+info:
+  title: Masjid App API
+  description: |
+    API for Masjid Application - Prayer times, events, announcements, campaigns, and donations management.
+    
+    ## Authentication
+    - **Admin APIs**: JWT Bearer Token in Authorization header
+    - **Member APIs**: API Key in X-API-Key header
+    - **Webhooks**: Stripe signature verification
+    
+    ## Rate Limits
+    - Admin APIs: 100 requests/minute per user
+    - Member APIs: 60 requests/minute per API key
+    - Auth endpoints: 10 requests/minute per IP
+  version: 1.0.0
+  contact:
+    name: Masjid App Support
+    email: support@masjid-app.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+  - url: https://api.{masjid-domain}.com/api/v1
+    description: Production server
+
+tags:
+  - name: Admin Auth
+    description: Admin authentication endpoints
+  - name: Admin Prayer Times
+    description: Prayer times management
+  - name: Admin Events
+    description: Events management
+  - name: Admin Announcements
+    description: Announcements management
+  - name: Admin Campaigns
+    description: Campaign management
+  - name: Admin Settings
+    description: Masjid settings management
+  - name: Admin Users
+    description: Admin user management (Super Admin only)
+  - name: Member Prayer Times
+    description: Prayer times for mobile app
+  - name: Member Events
+    description: Events for mobile app
+  - name: Member Campaigns
+    description: Campaigns and donations for mobile app
+  - name: Member Masjid
+    description: Masjid information for mobile app
+  - name: Member Devices
+    description: Device registration and preferences
+  - name: Webhooks
+    description: External service webhooks
+
+paths:
+  # ============================================
+  # ADMIN AUTH ENDPOINTS
+  # ============================================
+  /admin/auth/login:
+    post:
+      tags:
+        - Admin Auth
+      summary: Admin login
+      description: Authenticate admin user and receive JWT tokens
+      operationId: adminLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLockedError'
+
+  /admin/auth/refresh:
+    post:
+      tags:
+        - Admin Auth
+      summary: Refresh access token
+      description: Get new access token using refresh token cookie
+      operationId: adminRefreshToken
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/logout:
+    post:
+      tags:
+        - Admin Auth
+      summary: Admin logout
+      description: Invalidate refresh token and clear cookies
+      operationId: adminLogout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /admin/auth/me:
+    get:
+      tags:
+        - Admin Auth
+      summary: Get current user
+      description: Get details of currently authenticated admin user
+      operationId: getCurrentAdmin
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/auth/change-password:
+    put:
+      tags:
+        - Admin Auth
+      summary: Change password
+      description: Change current user's password
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # ADMIN PRAYER TIMES ENDPOINTS
+  # ============================================
+  /admin/prayer-times:
+    get:
+      tags:
+        - Admin Prayer Times
+      summary: List prayer times
+      description: Get prayer times with pagination and date filters
+      operationId: listPrayerTimes
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: List of prayer times
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimesListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Admin Prayer Times
+      summary: Create prayer time
+      description: Create prayer time entry for a specific date
+      operationId: createPrayerTime
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePrayerTimeRequest'
+      responses:
+        '201':
+          description: Prayer time created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimeResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Prayer time for this date already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/prayer-times/bulk:
+    post:
+      tags:
+        - Admin Prayer Times
+      summary: Bulk create/update prayer times
+      description: Create or update multiple prayer times (for importing monthly timetables)
+      operationId: bulkCreatePrayerTimes
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkPrayerTimesRequest'
+      responses:
+        '200':
+          description: Bulk operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/prayer-times/{id}:
+    get:
+      tags:
+        - Admin Prayer Times
+      summary: Get prayer time
+      description: Get single prayer time entry by ID
+      operationId: getPrayerTime
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Prayer time details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Admin Prayer Times
+      summary: Update prayer time
+      description: Update prayer time entry
+      operationId: updatePrayerTime
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePrayerTimeRequest'
+      responses:
+        '200':
+          description: Prayer time updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrayerTimeResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Admin Prayer Times
+      summary: Delete prayer time
+      description: Delete prayer time entry
+      operationId: deletePrayerTime
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Prayer time deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # ADMIN EVENTS ENDPOINTS
+  # ============================================
+  /admin/events:
+    get:
+      tags:
+        - Admin Events
+      summary: List events
+      description: Get all events with filters and pagination
+      operationId: listEvents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventStatus'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventCategory'
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - name: search
+          in: query
+          description: Search in title/description
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Admin Events
+      summary: Create event
+      description: Create new event
+      operationId: createEvent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/events/{id}:
+    get:
+      tags:
+        - Admin Events
+      summary: Get event
+      description: Get single event by ID
+      operationId: getEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Admin Events
+      summary: Update event
+      description: Update event details
+      operationId: updateEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Admin Events
+      summary: Delete event
+      description: Delete event (only draft events)
+      operationId: deleteEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Event deleted
+        '400':
+          description: Cannot delete non-draft event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/events/{id}/status:
+    patch:
+      tags:
+        - Admin Events
+      summary: Update event status
+      description: Update event status (publish, cancel, complete)
+      operationId: updateEventStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/events/{id}/notify:
+    post:
+      tags:
+        - Admin Events
+      summary: Send event notification
+      description: Send push notification for event to all registered devices
+      operationId: notifyEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Notification sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSentResponse'
+        '400':
+          description: Event not published or notification already sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/events/{id}/image:
+    post:
+      tags:
+        - Admin Events
+      summary: Upload event image
+      description: Upload featured image for event
+      operationId: uploadEventImage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, WebP, max 5MB)
+              required:
+                - image
+      responses:
+        '200':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageUploadResponse'
+        '400':
+          description: Invalid image file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # ADMIN ANNOUNCEMENTS ENDPOINTS
+  # ============================================
+  /admin/announcements:
+    get:
+      tags:
+        - Admin Announcements
+      summary: List announcements
+      description: Get all announcements with filters and pagination
+      operationId: listAnnouncements
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AnnouncementStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: List of announcements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Admin Announcements
+      summary: Create announcement
+      description: Create and optionally send/schedule announcement
+      operationId: createAnnouncement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnouncementRequest'
+      responses:
+        '201':
+          description: Announcement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/announcements/{id}:
+    get:
+      tags:
+        - Admin Announcements
+      summary: Get announcement
+      description: Get single announcement by ID
+      operationId: getAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Announcement details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Admin Announcements
+      summary: Update announcement
+      description: Update announcement (only draft/scheduled)
+      operationId: updateAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnouncementRequest'
+      responses:
+        '200':
+          description: Announcement updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Admin Announcements
+      summary: Delete announcement
+      description: Delete announcement (only draft)
+      operationId: deleteAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Announcement deleted
+        '400':
+          description: Cannot delete non-draft announcement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/announcements/{id}/send:
+    post:
+      tags:
+        - Admin Announcements
+      summary: Send announcement
+      description: Send a draft announcement immediately
+      operationId: sendAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Announcement sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationSentResponse'
+        '400':
+          description: Announcement already sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/announcements/{id}/cancel:
+    post:
+      tags:
+        - Admin Announcements
+      summary: Cancel scheduled announcement
+      description: Cancel a scheduled announcement
+      operationId: cancelAnnouncement
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Announcement cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementResponse'
+        '400':
+          description: Announcement not scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # ADMIN CAMPAIGNS ENDPOINTS
+  # ============================================
+  /admin/campaigns:
+    get:
+      tags:
+        - Admin Campaigns
+      summary: List campaigns
+      description: Get all campaigns with filters and pagination
+      operationId: listCampaigns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CampaignStatus'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/CampaignCategory'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Admin Campaigns
+      summary: Create campaign
+      description: Create new fundraising campaign
+      operationId: createCampaign
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCampaignRequest'
+      responses:
+        '201':
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/campaigns/{id}:
+    get:
+      tags:
+        - Admin Campaigns
+      summary: Get campaign
+      description: Get single campaign with detailed stats
+      operationId: getCampaign
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Campaign details with stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Admin Campaigns
+      summary: Update campaign
+      description: Update campaign details
+      operationId: updateCampaign
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCampaignRequest'
+      responses:
+        '200':
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Admin Campaigns
+      summary: Delete campaign
+      description: Delete campaign (only draft with no donations)
+      operationId: deleteCampaign
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Campaign deleted
+        '400':
+          description: Cannot delete campaign with donations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/campaigns/{id}/status:
+    patch:
+      tags:
+        - Admin Campaigns
+      summary: Update campaign status
+      description: Update campaign status (activate, pause, complete, cancel)
+      operationId: updateCampaignStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  $ref: '#/components/schemas/CampaignStatus'
+              required:
+                - status
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/campaigns/{id}/donations:
+    get:
+      tags:
+        - Admin Campaigns
+      summary: List campaign donations
+      description: Get donations for a specific campaign
+      operationId: listCampaignDonations
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DonationStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: List of donations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/campaigns/{id}/image:
+    post:
+      tags:
+        - Admin Campaigns
+      summary: Upload campaign image
+      description: Upload featured image for campaign
+      operationId: uploadCampaignImage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+              required:
+                - image
+      responses:
+        '200':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageUploadResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # ADMIN SETTINGS ENDPOINTS
+  # ============================================
+  /admin/settings:
+    get:
+      tags:
+        - Admin Settings
+      summary: Get masjid settings
+      description: Get all masjid settings including payment configuration
+      operationId: getSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Masjid settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MasjidSettingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Admin Settings
+      summary: Update masjid settings
+      description: Update masjid profile, services, and facilities
+      operationId: updateSettings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMasjidSettingsRequest'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MasjidSettingsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settings/logo:
+    post:
+      tags:
+        - Admin Settings
+      summary: Upload masjid logo
+      description: Upload masjid logo image
+      operationId: uploadLogo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                logo:
+                  type: string
+                  format: binary
+              required:
+                - logo
+      responses:
+        '200':
+          description: Logo uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageUploadResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Admin Settings
+      summary: Remove masjid logo
+      description: Remove current masjid logo
+      operationId: deleteLogo
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Logo removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settings/stripe/connect:
+    post:
+      tags:
+        - Admin Settings
+      summary: Initiate Stripe Connect
+      description: Start Stripe Connect onboarding process
+      operationId: initiateStripeConnect
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Onboarding URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeConnectResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settings/stripe/status:
+    get:
+      tags:
+        - Admin Settings
+      summary: Get Stripe account status
+      description: Get current Stripe Connect account status
+      operationId: getStripeStatus
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Stripe account status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # ADMIN USERS ENDPOINTS (Super Admin Only)
+  # ============================================
+  /admin/users:
+    get:
+      tags:
+        - Admin Users
+      summary: List admin users
+      description: Get all admin users (Super Admin only)
+      operationId: listAdminUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: List of admin users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Admin Users
+      summary: Create admin user
+      description: Create new admin user (Super Admin only)
+      operationId: createAdminUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminUserRequest'
+      responses:
+        '201':
+          description: Admin user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users/{id}:
+    put:
+      tags:
+        - Admin Users
+      summary: Update admin user
+      description: Update admin user details (Super Admin only)
+      operationId: updateAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminUserRequest'
+      responses:
+        '200':
+          description: Admin user updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Admin Users
+      summary: Deactivate admin user
+      description: Deactivate admin user (soft delete, Super Admin only)
+      operationId: deactivateAdminUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Admin user deactivated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{id}/reset-password:
+    post:
+      tags:
+        - Admin Users
+      summary: Reset user password
+      description: Reset admin user password (generates temporary password)
+      operationId: resetAdminUserPassword
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # MEMBER PRAYER TIMES ENDPOINTS
+  # ============================================
+  /member/prayer-times/today:
+    get:
+      tags:
+        - Member Prayer Times
+      summary: Get today's prayer times
+      description: Get prayer times for today with next prayer info
+      operationId: getTodayPrayerTimes
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Today's prayer times
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodayPrayerTimesResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/prayer-times/week:
+    get:
+      tags:
+        - Member Prayer Times
+      summary: Get weekly prayer times
+      description: Get prayer times for current week
+      operationId: getWeekPrayerTimes
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Weekly prayer times
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPrayerTimesResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/prayer-times/month:
+    get:
+      tags:
+        - Member Prayer Times
+      summary: Get monthly prayer times
+      description: Get prayer times for specified month
+      operationId: getMonthPrayerTimes
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: Month (1-12)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          description: Year
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Monthly prayer times
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthPrayerTimesResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  # ============================================
+  # MEMBER EVENTS ENDPOINTS
+  # ============================================
+  /member/events:
+    get:
+      tags:
+        - Member Events
+      summary: List published events
+      description: Get published events for mobile app
+      operationId: listMemberEvents
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventCategory'
+        - name: upcoming
+          in: query
+          description: Only future events
+          schema:
+            type: boolean
+            default: true
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberEventsListResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/events/{id}:
+    get:
+      tags:
+        - Member Events
+      summary: Get event details
+      description: Get single event details for mobile app
+      operationId: getMemberEvent
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberEventResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # MEMBER CAMPAIGNS ENDPOINTS
+  # ============================================
+  /member/campaigns:
+    get:
+      tags:
+        - Member Campaigns
+      summary: List active campaigns
+      description: Get active campaigns for mobile app
+      operationId: listMemberCampaigns
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/CampaignCategory'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCampaignsListResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/campaigns/{id}:
+    get:
+      tags:
+        - Member Campaigns
+      summary: Get campaign details
+      description: Get single campaign details for mobile app
+      operationId: getMemberCampaign
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Campaign details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCampaignResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /member/campaigns/{id}/donate:
+    post:
+      tags:
+        - Member Campaigns
+      summary: Create donation
+      description: Create donation and get Stripe checkout URL
+      operationId: createDonation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDonationRequest'
+      responses:
+        '200':
+          description: Donation created with checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDonationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /member/donations/{id}/status:
+    get:
+      tags:
+        - Member Campaigns
+      summary: Check donation status
+      description: Check donation status (for polling after checkout)
+      operationId: getDonationStatus
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Donation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationStatusResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # MEMBER MASJID ENDPOINTS
+  # ============================================
+  /member/masjid:
+    get:
+      tags:
+        - Member Masjid
+      summary: Get masjid info
+      description: Get masjid information for mobile app
+      operationId: getMasjidInfo
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Masjid information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberMasjidResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  # ============================================
+  # MEMBER DEVICE ENDPOINTS
+  # ============================================
+  /member/devices/register:
+    post:
+      tags:
+        - Member Devices
+      summary: Register device
+      description: Register device for push notifications
+      operationId: registerDevice
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+      responses:
+        '200':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterDeviceResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/devices/{fcmToken}:
+    delete:
+      tags:
+        - Member Devices
+      summary: Unregister device
+      description: Unregister device from push notifications
+      operationId: unregisterDevice
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: fcmToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Device unregistered
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+
+  /member/devices/{fcmToken}/preferences:
+    get:
+      tags:
+        - Member Devices
+      summary: Get notification preferences
+      description: Get notification preferences for device
+      operationId: getNotificationPreferences
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: fcmToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Member Devices
+      summary: Update notification preferences
+      description: Update notification preferences for device
+      operationId: updateNotificationPreferences
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: fcmToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationPreferencesRequest'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferencesResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/InvalidApiKey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # WEBHOOK ENDPOINTS
+  # ============================================
+  /webhooks/stripe:
+    post:
+      tags:
+        - Webhooks
+      summary: Stripe webhook
+      description: Handle Stripe webhook events
+      operationId: handleStripeWebhook
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+        '400':
+          description: Invalid signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  # ============================================
+  # SECURITY SCHEMES
+  # ============================================
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for admin authentication
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for mobile app authentication
+
+  # ============================================
+  # PARAMETERS
+  # ============================================
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      description: Resource UUID
+      schema:
+        type: string
+        format: uuid
+
+    Page:
+      name: page
+      in: query
+      description: Page number (0-indexed)
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+
+    Size:
+      name: size
+      in: query
+      description: Page size
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+    Sort:
+      name: sort
+      in: query
+      description: Sort field and direction (e.g., createdAt,desc)
+      schema:
+        type: string
+
+    StartDate:
+      name: startDate
+      in: query
+      description: Filter from date (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+
+    EndDate:
+      name: endDate
+      in: query
+      description: Filter to date (YYYY-MM-DD)
+      schema:
+        type: string
+        format: date
+
+  # ============================================
+  # RESPONSES
+  # ============================================
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Missing or invalid authentication token
+            meta:
+              timestamp: "2026-01-29T08:00:00Z"
+              requestId: req_abc123
+
+    InvalidApiKey:
+      description: Invalid or revoked API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INVALID_API_KEY
+              message: Invalid or revoked API key
+            meta:
+              timestamp: "2026-01-29T08:00:00Z"
+              requestId: req_abc123
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: FORBIDDEN
+              message: You do not have permission to perform this action
+            meta:
+              timestamp: "2026-01-29T08:00:00Z"
+              requestId: req_abc123
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: Resource not found
+            meta:
+              timestamp: "2026-01-29T08:00:00Z"
+              requestId: req_abc123
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+  # ============================================
+  # SCHEMAS
+  # ============================================
+  schemas:
+    # Common Schemas
+    Meta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MessageResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Enums
+    AdminRole:
+      type: string
+      enum:
+        - super_admin
+        - admin
+
+    EventStatus:
+      type: string
+      enum:
+        - draft
+        - published
+        - cancelled
+        - completed
+
+    EventCategory:
+      type: string
+      enum:
+        - community
+        - educational
+        - fundraiser
+        - religious
+        - youth
+        - other
+
+    AnnouncementStatus:
+      type: string
+      enum:
+        - draft
+        - scheduled
+        - sent
+        - failed
+
+    CampaignStatus:
+      type: string
+      enum:
+        - draft
+        - active
+        - paused
+        - completed
+        - cancelled
+
+    CampaignCategory:
+      type: string
+      enum:
+        - masjid_development
+        - education
+        - charity
+        - individual_support
+        - general
+
+    DonationStatus:
+      type: string
+      enum:
+        - pending
+        - completed
+        - failed
+        - refunded
+
+    # Auth Schemas
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        password:
+          type: string
+          minLength: 8
+
+    LoginResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            expiresIn:
+              type: integer
+              description: Token expiry in seconds
+            user:
+              $ref: '#/components/schemas/AdminUser'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            expiresIn:
+              type: integer
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AccountLockedError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: ACCOUNT_LOCKED
+            message:
+              type: string
+            lockedUntil:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+
+    # Admin User Schemas
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          $ref: '#/components/schemas/AdminRole'
+        isActive:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdminUserResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/AdminUser'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AdminUsersListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateAdminUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - fullName
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          minLength: 8
+        role:
+          $ref: '#/components/schemas/AdminRole'
+
+    UpdateAdminUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          $ref: '#/components/schemas/AdminRole'
+        isActive:
+          type: boolean
+
+    PasswordResetResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+            temporaryPassword:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Prayer Times Schemas
+    PrayerDetail:
+      type: object
+      properties:
+        athan:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "06:15"
+        jamah:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "06:45"
+
+    Prayers:
+      type: object
+      properties:
+        fajr:
+          $ref: '#/components/schemas/PrayerDetail'
+        sunrise:
+          $ref: '#/components/schemas/PrayerDetail'
+        zuhr:
+          $ref: '#/components/schemas/PrayerDetail'
+        asr:
+          $ref: '#/components/schemas/PrayerDetail'
+        maghrib:
+          $ref: '#/components/schemas/PrayerDetail'
+        isha:
+          $ref: '#/components/schemas/PrayerDetail'
+
+    JumuahTime:
+      type: object
+      properties:
+        khutbah:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        jamah:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+
+    PrayerTime:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        hijriDate:
+          type: string
+        prayers:
+          $ref: '#/components/schemas/Prayers'
+        jumuahTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/JumuahTime'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PrayerTimeResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/PrayerTime'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PrayerTimesListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrayerTime'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreatePrayerTimeRequest:
+      type: object
+      required:
+        - date
+        - prayers
+      properties:
+        date:
+          type: string
+          format: date
+        hijriDate:
+          type: string
+        prayers:
+          $ref: '#/components/schemas/Prayers'
+        jumuahTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/JumuahTime'
+
+    UpdatePrayerTimeRequest:
+      type: object
+      properties:
+        hijriDate:
+          type: string
+        prayers:
+          $ref: '#/components/schemas/Prayers'
+        jumuahTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/JumuahTime'
+
+    BulkPrayerTimesRequest:
+      type: object
+      required:
+        - prayerTimes
+      properties:
+        prayerTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatePrayerTimeRequest'
+
+    BulkOperationResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            created:
+              type: integer
+            updated:
+              type: integer
+            failed:
+              type: integer
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Event Schemas
+    EventTiming:
+      type: object
+      properties:
+        startTime:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        endTime:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        doorsOpen:
+          type: string
+          pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+
+    EventLocation:
+      type: object
+      properties:
+        venue:
+          type: string
+        address:
+          type: string
+        capacity:
+          type: integer
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+
+    EventSpeaker:
+      type: object
+      properties:
+        name:
+          type: string
+        bio:
+          type: string
+        imageUrl:
+          type: string
+
+    EventMedia:
+      type: object
+      properties:
+        featuredImageUrl:
+          type: string
+        featuredImageKey:
+          type: string
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/EventCategory'
+        status:
+          $ref: '#/components/schemas/EventStatus'
+        eventDate:
+          type: string
+          format: date
+        timing:
+          $ref: '#/components/schemas/EventTiming'
+        location:
+          $ref: '#/components/schemas/EventLocation'
+        speaker:
+          $ref: '#/components/schemas/EventSpeaker'
+        media:
+          $ref: '#/components/schemas/EventMedia'
+        registrationLink:
+          type: string
+        notificationSent:
+          type: boolean
+        notificationSentAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EventResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Event'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    EventsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateEventRequest:
+      type: object
+      required:
+        - title
+        - description
+        - category
+        - eventDate
+        - timing
+        - location
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/EventCategory'
+        eventDate:
+          type: string
+          format: date
+        timing:
+          $ref: '#/components/schemas/EventTiming'
+        location:
+          $ref: '#/components/schemas/EventLocation'
+        speaker:
+          $ref: '#/components/schemas/EventSpeaker'
+        registrationLink:
+          type: string
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/EventCategory'
+        eventDate:
+          type: string
+          format: date
+        timing:
+          $ref: '#/components/schemas/EventTiming'
+        location:
+          $ref: '#/components/schemas/EventLocation'
+        speaker:
+          $ref: '#/components/schemas/EventSpeaker'
+        registrationLink:
+          type: string
+
+    UpdateStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/EventStatus'
+
+    # Announcement Schemas
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        message:
+          type: string
+        status:
+          $ref: '#/components/schemas/AnnouncementStatus'
+        isScheduled:
+          type: boolean
+        scheduledFor:
+          type: string
+          format: date-time
+          nullable: true
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        fcmMessageId:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AnnouncementResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Announcement'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AnnouncementsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Announcement'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateAnnouncementRequest:
+      type: object
+      required:
+        - title
+        - message
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+        sendImmediately:
+          type: boolean
+          default: false
+        isScheduled:
+          type: boolean
+          default: false
+        scheduledFor:
+          type: string
+          format: date-time
+
+    UpdateAnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        message:
+          type: string
+        scheduledFor:
+          type: string
+          format: date-time
+
+    NotificationSentResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+            recipientCount:
+              type: integer
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Campaign Schemas
+    CampaignMedia:
+      type: object
+      properties:
+        featuredImageUrl:
+          type: string
+        featuredImageKey:
+          type: string
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/CampaignCategory'
+        status:
+          $ref: '#/components/schemas/CampaignStatus'
+        goalAmount:
+          type: number
+          format: double
+        raisedAmount:
+          type: number
+          format: double
+        donorCount:
+          type: integer
+        progressPercentage:
+          type: number
+          format: double
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        media:
+          $ref: '#/components/schemas/CampaignMedia'
+        createdBy:
+          type: string
+          format: uuid
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CampaignStats:
+      type: object
+      properties:
+        totalDonations:
+          type: integer
+        averageDonation:
+          type: number
+          format: double
+        largestDonation:
+          type: number
+          format: double
+        anonymousDonations:
+          type: integer
+        donationsToday:
+          type: integer
+        amountToday:
+          type: number
+          format: double
+
+    CampaignResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Campaign'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CampaignDetailResponse:
+      type: object
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/Campaign'
+            - type: object
+              properties:
+                stats:
+                  $ref: '#/components/schemas/CampaignStats'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CampaignsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campaign'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateCampaignRequest:
+      type: object
+      required:
+        - title
+        - description
+        - category
+        - goalAmount
+        - startDate
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/CampaignCategory'
+        goalAmount:
+          type: number
+          format: double
+          minimum: 1
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+
+    UpdateCampaignRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/CampaignCategory'
+        goalAmount:
+          type: number
+          format: double
+        endDate:
+          type: string
+          format: date
+
+    # Donation Schemas
+    Donation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        campaignId:
+          type: string
+          format: uuid
+        donorName:
+          type: string
+          nullable: true
+        donorEmail:
+          type: string
+          nullable: true
+        isAnonymous:
+          type: boolean
+        amount:
+          type: number
+          format: double
+        processingFee:
+          type: number
+          format: double
+        coverFee:
+          type: boolean
+        totalCharged:
+          type: number
+          format: double
+        currency:
+          type: string
+        paymentMethod:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/DonationStatus'
+        receiptSent:
+          type: boolean
+        receiptSentAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    DonationsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Donation'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateDonationRequest:
+      type: object
+      required:
+        - amount
+        - successUrl
+        - cancelUrl
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 1
+        donorName:
+          type: string
+        donorEmail:
+          type: string
+          format: email
+        isAnonymous:
+          type: boolean
+          default: false
+        coverFee:
+          type: boolean
+          default: false
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+
+    CreateDonationResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            donationId:
+              type: string
+              format: uuid
+            checkoutUrl:
+              type: string
+            amount:
+              type: number
+              format: double
+            processingFee:
+              type: number
+              format: double
+            totalCharged:
+              type: number
+              format: double
+            currency:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    DonationStatusResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: '#/components/schemas/DonationStatus'
+            amount:
+              type: number
+              format: double
+            campaignTitle:
+              type: string
+            completedAt:
+              type: string
+              format: date-time
+              nullable: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Settings Schemas
+    MasjidAddress:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        postcode:
+          type: string
+        country:
+          type: string
+
+    MasjidContact:
+      type: object
+      properties:
+        phone:
+          type: string
+        email:
+          type: string
+        website:
+          type: string
+
+    MasjidLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    MasjidCapacity:
+      type: object
+      properties:
+        mens:
+          type: integer
+        womens:
+          type: integer
+
+    MasjidServices:
+      type: object
+      properties:
+        jumuahPrayer:
+          type: boolean
+        taraweehPrayer:
+          type: boolean
+        eidPrayer:
+          type: boolean
+        funeralService:
+          type: boolean
+        marriageService:
+          type: boolean
+        counseling:
+          type: boolean
+        hallRental:
+          type: boolean
+        quranClasses:
+          type: boolean
+        newMuslimSupport:
+          type: boolean
+        iftarProgram:
+          type: boolean
+
+    MasjidFacilities:
+      type: object
+      properties:
+        parking:
+          type: boolean
+        sistersArea:
+          type: boolean
+        wuduFacilities:
+          type: boolean
+        disabilityAccess:
+          type: boolean
+        childrensArea:
+          type: boolean
+        library:
+          type: boolean
+        shoeRacks:
+          type: boolean
+
+    MasjidPayment:
+      type: object
+      properties:
+        stripeAccountId:
+          type: string
+        stripeAccountStatus:
+          type: string
+        bankAccountName:
+          type: string
+        bankAccountNumberLast4:
+          type: string
+        bankSortCode:
+          type: string
+
+    MasjidSettings:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        about:
+          type: string
+        logoUrl:
+          type: string
+        logoKey:
+          type: string
+        address:
+          $ref: '#/components/schemas/MasjidAddress'
+        contact:
+          $ref: '#/components/schemas/MasjidContact'
+        location:
+          $ref: '#/components/schemas/MasjidLocation'
+        capacity:
+          $ref: '#/components/schemas/MasjidCapacity'
+        services:
+          $ref: '#/components/schemas/MasjidServices'
+        facilities:
+          $ref: '#/components/schemas/MasjidFacilities'
+        payment:
+          $ref: '#/components/schemas/MasjidPayment'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MasjidSettingsResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/MasjidSettings'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    UpdateMasjidSettingsRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        about:
+          type: string
+        address:
+          $ref: '#/components/schemas/MasjidAddress'
+        contact:
+          $ref: '#/components/schemas/MasjidContact'
+        location:
+          $ref: '#/components/schemas/MasjidLocation'
+        capacity:
+          $ref: '#/components/schemas/MasjidCapacity'
+        services:
+          $ref: '#/components/schemas/MasjidServices'
+        facilities:
+          $ref: '#/components/schemas/MasjidFacilities'
+
+    ImageUploadResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            imageUrl:
+              type: string
+            imageKey:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StripeConnectResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            onboardingUrl:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StripeStatusResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accountId:
+              type: string
+            status:
+              type: string
+            chargesEnabled:
+              type: boolean
+            payoutsEnabled:
+              type: boolean
+            detailsSubmitted:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Member-specific Schemas
+    NextPrayer:
+      type: object
+      properties:
+        name:
+          type: string
+        athan:
+          type: string
+        jamah:
+          type: string
+        timeUntil:
+          type: string
+
+    TodayPrayerTimesResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            date:
+              type: string
+              format: date
+            hijriDate:
+              type: string
+            prayers:
+              $ref: '#/components/schemas/Prayers'
+            jumuahTimes:
+              type: array
+              items:
+                $ref: '#/components/schemas/JumuahTime'
+              nullable: true
+            nextPrayer:
+              $ref: '#/components/schemas/NextPrayer'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    WeekPrayerTime:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayName:
+          type: string
+        hijriDate:
+          type: string
+        prayers:
+          $ref: '#/components/schemas/Prayers'
+        jumuahTimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/JumuahTime'
+          nullable: true
+
+    WeekPrayerTimesResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekPrayerTime'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MonthPrayerTimesResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekPrayerTime'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/EventCategory'
+        eventDate:
+          type: string
+          format: date
+        timing:
+          $ref: '#/components/schemas/EventTiming'
+        location:
+          $ref: '#/components/schemas/EventLocation'
+        speaker:
+          $ref: '#/components/schemas/EventSpeaker'
+        featuredImageUrl:
+          type: string
+        registrationLink:
+          type: string
+
+    MemberEventResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/MemberEvent'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberEventsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberEvent'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberCampaign:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: '#/components/schemas/CampaignCategory'
+        goalAmount:
+          type: number
+          format: double
+        raisedAmount:
+          type: number
+          format: double
+        donorCount:
+          type: integer
+        progressPercentage:
+          type: number
+          format: double
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        daysRemaining:
+          type: integer
+          nullable: true
+        featuredImageUrl:
+          type: string
+
+    MemberCampaignResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/MemberCampaign'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberCampaignsListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberCampaign'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    MemberMasjidAddress:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        postcode:
+          type: string
+        country:
+          type: string
+        formatted:
+          type: string
+
+    MemberMasjidCapacity:
+      type: object
+      properties:
+        mens:
+          type: integer
+        womens:
+          type: integer
+        total:
+          type: integer
+
+    MemberMasjidResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            name:
+              type: string
+            about:
+              type: string
+            logoUrl:
+              type: string
+            address:
+              $ref: '#/components/schemas/MemberMasjidAddress'
+            contact:
+              $ref: '#/components/schemas/MasjidContact'
+            location:
+              $ref: '#/components/schemas/MasjidLocation'
+            capacity:
+              $ref: '#/components/schemas/MemberMasjidCapacity'
+            services:
+              type: array
+              items:
+                type: string
+            facilities:
+              type: array
+              items:
+                type: string
+            donationsEnabled:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # Device Schemas
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - fcmToken
+        - platform
+      properties:
+        fcmToken:
+          type: string
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+        appVersion:
+          type: string
+        deviceModel:
+          type: string
+
+    RegisterDeviceResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            deviceId:
+              type: string
+              format: uuid
+            registered:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PrayerAlertPreferences:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        minutesBefore:
+          type: integer
+        prayers:
+          type: object
+          properties:
+            fajr:
+              type: boolean
+            zuhr:
+              type: boolean
+            asr:
+              type: boolean
+            maghrib:
+              type: boolean
+            isha:
+              type: boolean
+
+    NotificationPreferences:
+      type: object
+      properties:
+        prayerAlerts:
+          $ref: '#/components/schemas/PrayerAlertPreferences'
+        announcements:
+          type: boolean
+        events:
+          type: boolean
+        campaigns:
+          type: boolean
+
+    NotificationPreferencesResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/NotificationPreferences'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    UpdateNotificationPreferencesRequest:
+      $ref: '#/components/schemas/NotificationPreferences'
