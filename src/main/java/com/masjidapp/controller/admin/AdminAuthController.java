@@ -48,8 +48,7 @@ public class AdminAuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletResponse response
-    ) {
+            HttpServletResponse response) {
         log.info("Login request received for email: {}", request.getEmail());
 
         LoginResponse loginResponse = authService.login(request);
@@ -85,14 +84,18 @@ public class AdminAuthController {
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<MessageResponse>> logout(
             @AuthenticationPrincipal UserDetails userDetails,
-            HttpServletResponse response
-    ) {
-        AdminUser adminUser = adminUserRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow();
+            HttpServletResponse response) {
 
-        authService.logout(adminUser.getId());
+        if (userDetails != null) {
+            String email = userDetails.getUsername();
+            log.info("Processing logout for user: {}", email);
+            adminUserRepository.findByEmail(email)
+                    .ifPresent(u -> authService.logout(u.getId()));
+        } else {
+            log.info("Processing anonymous logout (clearing cookies)");
+        }
 
-        // Clear refresh token cookie
+        // Always clear refresh token cookie
         clearRefreshTokenCookie(response);
 
         return ResponseEntity.ok(ApiResponse.success(MessageResponse.of("Logged out successfully")));
@@ -104,8 +107,7 @@ public class AdminAuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<AdminUserResponse>> getCurrentUser(
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
+            @AuthenticationPrincipal UserDetails userDetails) {
         AdminUser adminUser = adminUserRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow();
 
@@ -122,8 +124,7 @@ public class AdminAuthController {
     public ResponseEntity<ApiResponse<MessageResponse>> changePassword(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request,
-            HttpServletResponse response
-    ) {
+            HttpServletResponse response) {
         AdminUser adminUser = adminUserRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow();
 
@@ -141,10 +142,10 @@ public class AdminAuthController {
     private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true); // Only send over HTTPS
-        cookie.setPath("/api/v1/admin/auth");
+        cookie.setSecure(false); // Valid for localhost
+        cookie.setPath("/"); // Must be "/" so frontend middleware can read it
         cookie.setMaxAge(REFRESH_TOKEN_COOKIE_MAX_AGE);
-        cookie.setAttribute("SameSite", "Strict");
+        cookie.setAttribute("SameSite", "Lax"); // Strict can block cross-site (even port difference sometimes)
         response.addCookie(cookie);
     }
 
@@ -154,9 +155,10 @@ public class AdminAuthController {
     private void clearRefreshTokenCookie(HttpServletResponse response) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setPath("/api/v1/admin/auth");
+        cookie.setSecure(false); // Valid for localhost
+        cookie.setPath("/"); // Must match the creation path
         cookie.setMaxAge(0);
+        cookie.setAttribute("SameSite", "Lax");
         response.addCookie(cookie);
     }
 
