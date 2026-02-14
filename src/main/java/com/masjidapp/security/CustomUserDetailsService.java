@@ -27,11 +27,10 @@ public class CustomUserDetailsService implements UserDetailsService {
                 adminUser.getEmail(),
                 adminUser.getPasswordHash(),
                 adminUser.isActive(),
-                true,  // accountNonExpired
-                true,  // credentialsNonExpired
-                true,  // accountNonLocked
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + adminUser.getRole().name()))
-        );
+                true, // accountNonExpired
+                true, // credentialsNonExpired
+                true, // accountNonLocked
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + adminUser.getRole().name())));
     }
 
 }

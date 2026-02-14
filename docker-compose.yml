@@ -1,0 +1,50 @@
+services:
+  app:
+    build: .
+    container_name: masjid-backend
+    restart: always
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/masjid_app
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-postgres}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+    depends_on:
+      - db
+    networks:
+      - masjid-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: masjid-db
+    restart: always
+    environment:
+      - POSTGRES_DB=masjid_app
+      - POSTGRES_USER=${DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - masjid-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: masjid-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - app
+    networks:
+      - masjid-network
+
+volumes:
+  db-data:
+
+networks:
+  masjid-network:
+    driver: bridge

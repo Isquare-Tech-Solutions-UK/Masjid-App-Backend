@@ -32,29 +32,28 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> {})
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                .cors(cors -> {
+                })
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints - no authentication required
                         .requestMatchers(
                                 "/admin/auth/login",
-                                "/admin/auth/refresh"
-                        ).permitAll()
+                                "/admin/auth/refresh",
+                                "/admin/auth/logout")
+                        .permitAll()
 
                         // Member endpoints - API Key authentication (to be implemented)
-                        .requestMatchers("/member/**").permitAll()  // TODO: Add API Key filter
+                        .requestMatchers("/member/**").permitAll() // TODO: Add API Key filter
 
                         // Webhook endpoints - Stripe signature verification (to be implemented)
-                        .requestMatchers("/webhooks/**").permitAll()  // TODO: Add Stripe verification
+                        .requestMatchers("/webhooks/**").permitAll() // TODO: Add Stripe verification
 
                         // All other admin endpoints require JWT authentication
                         .requestMatchers("/admin/**").authenticated()
 
                         // Any other request
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
