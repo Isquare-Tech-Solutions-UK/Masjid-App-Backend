@@ -18,7 +18,7 @@ You must configure the following secrets in your GitHub repository (**Settings >
 #### Global Secrets (Used by both environments)
 | Secret Name | Description |
 |---|---|
-| `DOCKER_USERNAME` | Your Docker Hub username. |
+| `DOCKER_USERNAME` | `syedfardeen1786` (Your Docker Hub username). |
 | `DOCKER_PASSWORD` | Your Docker Hub password or access token. |
 
 #### Development Environment Secrets
