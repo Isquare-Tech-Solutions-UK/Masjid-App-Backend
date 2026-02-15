@@ -73,13 +73,9 @@ jobs:
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             export DB_USERNAME=${{ secrets.DEV_DB_USERNAME }}
             export DB_PASSWORD=${{ secrets.DEV_DB_PASSWORD }}
-            # Stop old standalone nginx if running
-            docker stop masjid-nginx 2>/dev/null && docker rm masjid-nginx 2>/dev/null || true
-            # Pull latest image
-            docker-compose -f docker-compose.dev.yml pull
-            # Stop and remove old backend container to avoid docker-compose v1 rename bug
-            docker-compose -f docker-compose.dev.yml stop app || true
-            docker-compose -f docker-compose.dev.yml rm -f app || true
-            # Start all services with force-recreate
-            docker-compose -f docker-compose.dev.yml up -d --force-recreate --remove-orphans
+            # Pull latest images
+            docker compose -f docker-compose.dev.yml pull
+            # Recreate only changed services
+            docker compose -f docker-compose.dev.yml up -d --force-recreate --remove-orphans
+            # Clean up unused images
             docker image prune -f
