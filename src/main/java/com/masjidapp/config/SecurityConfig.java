@@ -40,7 +40,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/admin/auth/login",
                                 "/admin/auth/refresh",
-                                "/admin/auth/logout")
+                                "/admin/auth/logout",
+                                "/actuator/health")
                         .permitAll()
 
                         // Member endpoints - API Key authentication (to be implemented)
