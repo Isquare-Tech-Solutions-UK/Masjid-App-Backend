@@ -25,6 +25,16 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+
 # Server Configuration
 server:
   port: 8080
