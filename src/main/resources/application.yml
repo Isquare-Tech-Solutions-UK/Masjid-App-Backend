@@ -1,6 +1,13 @@
 spring:
   application:
     name: masjid-app-backend
+  servlet:
+
+    multipart:
+      enabled: true
+      max-file-size: 10MB          # Per file limit
+      max-request-size: 50MB       # Total for all files in one request
+      file-size-threshold: 2KB
 
   # Database Configuration
   datasource:
@@ -53,3 +60,12 @@ logging:
     root: INFO
     com.masjidapp: DEBUG
     org.springframework.security: DEBUG
+
+aws:
+  s3:
+    bucket-name: masjid-app-media
+    region: ap-south-1
+
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
