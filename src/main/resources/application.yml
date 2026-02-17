@@ -71,3 +71,6 @@ logging:
 app:
   s3:
     bucket-name: masjid-app-media
+
+cors:
+  allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
