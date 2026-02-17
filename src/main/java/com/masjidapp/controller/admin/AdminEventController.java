@@ -4,18 +4,14 @@ import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.dto.request.CreateEventRequest;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
-import com.masjidapp.entity.AdminUser;
 import com.masjidapp.repository.AdminUserRepository;
 import com.masjidapp.service.EventService;
-import com.masjidapp.utill.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,6 +39,7 @@ public class AdminEventController {
     public ResponseEntity<ApiResponse<EventResponse>> createEvent(
             @Valid @ModelAttribute CreateEventRequest request,
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
+
         log.info("Received request to create event. title={}, speaker={}, date={}",
                 request.getTitle(), request.getSpeaker(), request.getDate());
 
