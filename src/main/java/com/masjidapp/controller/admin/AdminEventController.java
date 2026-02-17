@@ -1,5 +1,6 @@
 package com.masjidapp.controller.admin;
 
+import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.dto.request.CreateEventRequest;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
@@ -32,6 +33,7 @@ public class AdminEventController {
 
     private final EventService eventService;
     private final AdminUserRepository adminUserRepository;
+    private final AuthRequestContainer authRequestContainer;
 
     /**
      * POST /admin/events
@@ -41,29 +43,11 @@ public class AdminEventController {
     public ResponseEntity<ApiResponse<EventResponse>> createEvent(
             @Valid @ModelAttribute CreateEventRequest request,
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
-
-        String adminEmail = SecurityUtils.getCurrentUsername();
-
-        if (adminEmail == null) {
-            log.warn("Unauthorized attempt to create event. No authenticated user found.");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        AdminUser adminUser = adminUserRepository.findByEmail(adminEmail)
-                .orElseThrow(() -> {
-                    log.error("Authenticated admin not found in DB. email={}", adminEmail);
-                    return new IllegalStateException("Authenticated admin not found");
-                });
-
-        log.info(
-                "Received create event request. title={}, speaker={}, adminEmail={}",
-                request.getTitle(),
-                request.getSpeaker(),
-                adminUser.getEmail()
-        );
+        log.info("Received request to create event. title={}, speaker={}, date={}",
+                request.getTitle(), request.getSpeaker(), request.getDate());
 
         EventResponse eventResponse =
-                eventService.createEvent(request, images, adminUser);
+                eventService.createEvent(request, images, authRequestContainer.getAdminUser());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(eventResponse));

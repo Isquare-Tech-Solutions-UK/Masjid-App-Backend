@@ -67,21 +67,3 @@ CREATE TABLE public.events (
 CREATE INDEX idx_events_status ON public.events(status);
 CREATE INDEX idx_events_date ON public.events(date);
 CREATE INDEX idx_events_created_by ON public.events(created_by);
-
--- Reattach updated_at trigger if update_updated_at_column() exists
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM pg_proc
-        WHERE proname = 'update_updated_at_column'
-    ) THEN
-        CREATE TRIGGER update_events_updated_at
-            BEFORE UPDATE ON public.events
-            FOR EACH ROW
-            EXECUTE FUNCTION update_updated_at_column();
-    END IF;
-END;
-$$;
-
-
