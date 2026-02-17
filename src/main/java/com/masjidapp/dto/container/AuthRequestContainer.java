@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 @Scope(proxyMode = ScopedProxyMode.TARGET_CLASS, value = "request")
 @Data
 public class AuthRequestContainer {
-   private  AdminUser adminUser;
+
+   private AdminUser adminUser;
 
 }
