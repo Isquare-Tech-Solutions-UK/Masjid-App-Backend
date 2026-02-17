@@ -6,6 +6,7 @@ import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.repository.AdminUserRepository;
 import com.masjidapp.service.EventService;
+import com.masjidapp.utill.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,28 +40,35 @@ public class AdminEventController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<EventResponse>> createEvent(
             @Valid @ModelAttribute CreateEventRequest request,
-            @RequestPart(value = "images", required = false) List<MultipartFile> images,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) {
 
-        if (userDetails == null) {
+        String adminEmail = SecurityUtils.getCurrentUsername();
+
+        if (adminEmail == null) {
             log.warn("Unauthorized attempt to create event. No authenticated user found.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        AdminUser adminUser = adminUserRepository.findByEmail(userDetails.getUsername())
+        AdminUser adminUser = adminUserRepository.findByEmail(adminEmail)
                 .orElseThrow(() -> {
-                    log.error("Authenticated user not found in database. email={}", userDetails.getUsername());
-                    return new IllegalStateException("Authenticated user not found");
+                    log.error("Authenticated admin not found in DB. email={}", adminEmail);
+                    return new IllegalStateException("Authenticated admin not found");
                 });
 
-        log.info("Received create event request. title={}, speaker={}, adminEmail={}",
-                request.getTitle(), request.getSpeaker(), adminUser.getEmail());
+        log.info(
+                "Received create event request. title={}, speaker={}, adminEmail={}",
+                request.getTitle(),
+                request.getSpeaker(),
+                adminUser.getEmail()
+        );
 
-        EventResponse eventResponse = eventService.createEvent(request, images, adminUser);
+        EventResponse eventResponse =
+                eventService.createEvent(request, images, adminUser);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(eventResponse));
     }
 }
+
 
 

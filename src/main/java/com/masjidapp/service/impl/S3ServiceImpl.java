@@ -6,10 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -20,100 +17,147 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * S3ServiceImpl
+ *
+ * Handles Amazon S3 operations related to event images.
+ *
+ * Responsibilities:
+ * - Upload multiple images
+ * - Generate structured S3 object keys
+ * - Return public object URLs
+ *
+ * Key Structure:
+ * events/{year}/{month}/{uuid}-{index}.{extension}
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class S3ServiceImpl implements S3Service {
 
-    @Value("${aws.s3.bucket-name}")
+    private final S3Client s3Client;
+
+    @Value("${app.s3.bucket-name}")
     private String bucketName;
 
-    @Value("${aws.s3.region}")
+    @Value("${spring.cloud.aws.region.static}")
     private String region;
 
-    @Value("${aws.credentials.access-key}")
-    private String accessKeyId;
-
-    @Value("${aws.credentials.secret-key}")
-    private String secretAccessKey;
 
     /**
-     * Upload event images to S3.
-     * The S3 key format is: events/{year}/{month}/{uuid}-{index}.{ext}
+     * Uploads event images to S3.
+     *
+     * @param files List of uploaded multipart files
+     * @return List of public S3 URLs
      */
     @Override
     public List<String> uploadEventImages(List<MultipartFile> files) {
-        List<String> urls = new ArrayList<>();
+
+        List<String> uploadedUrls = new ArrayList<>();
 
         if (files == null || files.isEmpty()) {
-            log.debug("No event images provided for upload");
-            return urls;
+            log.debug("S3 Upload Skipped: No files provided.");
+            return uploadedUrls;
         }
 
-        S3Client s3Client = buildClient();
+        log.info("S3 Upload Initiated: totalFiles={}, bucket={}", files.size(), bucketName);
 
-        LocalDate today = LocalDate.now();
-        String year = today.format(DateTimeFormatter.ofPattern("yyyy"));
-        String month = today.format(DateTimeFormatter.ofPattern("MM"));
+        String basePath = generateBasePath();
 
-        for (int i = 0; i < files.size(); i++) {
-            MultipartFile file = files.get(i);
-            if (file.isEmpty()) {
-                log.warn("Skipping empty image file at index {}", i);
+        for (int index = 0; index < files.size(); index++) {
+
+            MultipartFile file = files.get(index);
+
+            if (file == null || file.isEmpty()) {
+                log.warn("S3 Upload Skipped: Empty file at index={}", index);
                 continue;
             }
 
-            String originalFilename = file.getOriginalFilename();
-            String extension = extractExtension(originalFilename);
-            String key = String.format("events/%s/%s/%s-%d%s",
-                    year,
-                    month,
-                    UUID.randomUUID(),
-                    i + 1,
-                    extension);
+            String key = buildObjectKey(basePath, file.getOriginalFilename(), index);
 
             try {
-                log.info("Uploading event image to S3. key={}, size={} bytes", key, file.getSize());
+                uploadToS3(key, file);
+                String fileUrl = generatePublicUrl(key);
 
-                PutObjectRequest putRequest = PutObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(key)
-                        .contentType(file.getContentType())
-                        .build();
+                uploadedUrls.add(fileUrl);
 
-                s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
+                log.info("S3 Upload Success: key={}, size={} bytes",
+                        key, file.getSize());
 
-                String url = String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, key);
-                urls.add(url);
+            } catch (IOException ex) {
+                log.error("S3 Upload Failed: key={}, error={}",
+                        key, ex.getMessage(), ex);
 
-                log.debug("Successfully uploaded event image. key={}, url={}", key, url);
-            } catch (IOException e) {
-                log.error("Failed to upload event image to S3 for key {}", key, e);
-                throw new RuntimeException("Failed to upload image to S3", e);
+                throw new RuntimeException("Failed to upload image to S3", ex);
             }
         }
 
-        return urls;
+        log.info("S3 Upload Completed: successCount={}", uploadedUrls.size());
+
+        return uploadedUrls;
     }
 
-    private S3Client buildClient() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
-        return S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+    /**
+     * Upload single file to S3.
+     */
+    private void uploadToS3(String key, MultipartFile file) throws IOException {
+
+        PutObjectRequest putRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .contentType(file.getContentType())
                 .build();
+
+        s3Client.putObject(
+                putRequest,
+                RequestBody.fromBytes(file.getBytes())
+        );
     }
 
+    /**
+     * Generate base folder path based on current year & month.
+     */
+    private String generateBasePath() {
+        LocalDate today = LocalDate.now();
+        String year = today.format(DateTimeFormatter.ofPattern("yyyy"));
+        String month = today.format(DateTimeFormatter.ofPattern("MM"));
+        return String.format("events/%s/%s", year, month);
+    }
+
+    /**
+     * Build unique S3 object key.
+     */
+    private String buildObjectKey(String basePath, String originalFilename, int index) {
+        String extension = extractExtension(originalFilename);
+        return String.format("%s/%s-%d%s",
+                basePath,
+                UUID.randomUUID(),
+                index + 1,
+                extension
+        );
+    }
+
+    /**
+     * Generate public URL for uploaded object.
+     */
+    private String generatePublicUrl(String key) {
+        return String.format(
+                "https://%s.s3.%s.amazonaws.com/%s",
+                bucketName,
+                region,
+                key
+        );
+    }
+
+
+    /**
+     * Extract file extension from filename.
+     */
     private String extractExtension(String filename) {
-        if (filename == null) {
+        if (filename == null || filename.isBlank()) {
             return "";
         }
-        int dotIndex = filename.lastIndexOf('.');
-        if (dotIndex == -1) {
-            return "";
-        }
-        return filename.substring(dotIndex);
+        int lastDotIndex = filename.lastIndexOf('.');
+        return lastDotIndex == -1 ? "" : filename.substring(lastDotIndex);
     }
 }
-
-

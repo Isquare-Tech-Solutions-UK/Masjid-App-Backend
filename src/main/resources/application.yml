@@ -32,7 +32,14 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-# Actuator Configuration
+  cloud:
+    aws:
+      region:
+        static: ap-south-1
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+
 management:
   endpoints:
     web:
@@ -61,11 +68,6 @@ logging:
     com.masjidapp: DEBUG
     org.springframework.security: DEBUG
 
-aws:
+app:
   s3:
     bucket-name: masjid-app-media
-    region: ap-south-1
-
-  credentials:
-    access-key: ${AWS_ACCESS_KEY_ID}
-    secret-key: ${AWS_SECRET_ACCESS_KEY}
