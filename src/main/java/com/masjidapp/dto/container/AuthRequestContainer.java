@@ -1,5 +1,6 @@
 package com.masjidapp.dto.container;
 
+import com.masjidapp.entity.AdminUser;
 import lombok.Data;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
@@ -10,7 +11,6 @@ import org.springframework.stereotype.Component;
 @Data
 public class AuthRequestContainer {
 
-    String adminUserName;
-    String adminUserId;
+   private AdminUser adminUser;
 
 }

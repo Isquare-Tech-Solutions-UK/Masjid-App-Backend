@@ -25,9 +25,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         AdminUser adminUser = adminUserRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        authRequestContainer.setAdminUserId(adminUser.getId().toString());
-        authRequestContainer.setAdminUserName(adminUser.getUsername());
-
+        authRequestContainer.setAdminUser(adminUser);
 
         return new User(
                 adminUser.getEmail(),
