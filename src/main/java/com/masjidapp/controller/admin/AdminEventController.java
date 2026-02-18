@@ -4,7 +4,6 @@ import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.dto.request.CreateEventRequest;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
-import com.masjidapp.entity.AdminUser;
 import com.masjidapp.service.EventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -87,14 +86,12 @@ public class AdminEventController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        log.info("Fetching admin events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
+        log.info("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
                 status, upcoming, past, startDate, endDate, page, size);
-
-        AdminUser currentAdmin = authRequestContainer.getAdminUser();
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
         Page<EventResponse> pageResult = eventService.getAdminEvents(
-                currentAdmin, status, upcoming, past, startDate, endDate, pageable);
+                status, upcoming, past, startDate, endDate, pageable);
 
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());
@@ -112,8 +109,7 @@ public class AdminEventController {
     public ResponseEntity<ApiResponse<EventResponse>> getEventById(@PathVariable UUID id) {
         log.info("Fetching event by ID: {}", id);
 
-        AdminUser currentAdmin = authRequestContainer.getAdminUser();
-        EventResponse eventResponse = eventService.getEventById(id, currentAdmin);
+        EventResponse eventResponse = eventService.getEventById(id);
 
         return ResponseEntity.ok(ApiResponse.success(eventResponse));
     }

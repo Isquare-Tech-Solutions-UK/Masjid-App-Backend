@@ -19,12 +19,11 @@ public interface EventService {
     EventResponse createEvent(CreateEventRequest request, List<MultipartFile> images, AdminUser createdBy);
 
     /**
-     * Get paginated events for a specific admin with filters.
-     * - Only events created by the given admin are returned.
+     * Get all paginated events with filters.
+     * - Returns all events (no admin filtering).
      * - Supports status, upcoming/past, and date range filters.
      */
     Page<EventResponse> getAdminEvents(
-            AdminUser admin,
             String status,
             Boolean upcoming,
             Boolean past,
@@ -37,7 +36,7 @@ public interface EventService {
      * - Only returns the event if it was created by the given admin.
      * - Throws ResourceNotFoundException if event not found or doesn't belong to admin.
      */
-    EventResponse getEventById(UUID eventId, AdminUser admin);
+    EventResponse getEventById(UUID eventId);
 }
 
 

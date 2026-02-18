@@ -72,12 +72,11 @@ public class EventServiceImpl implements EventService {
     }
 
     /**
-     * Get paginated events for a specific admin with filters.
+     * Get all paginated events with filters.
      */
     @Override
     @Transactional(readOnly = true)
     public Page<EventResponse> getAdminEvents(
-            AdminUser admin,
             String status,
             Boolean upcoming,
             Boolean past,
@@ -85,11 +84,10 @@ public class EventServiceImpl implements EventService {
             LocalDateTime endDate,
             Pageable pageable) {
 
-        log.debug("Fetching events for admin={} - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
-                admin.getId(), status, upcoming, past, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
+        log.debug("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
+                status, upcoming, past, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
 
         List<Event> allEvents = eventRepository.findAll();
-        log.info("all events {}",allEvents);
         LocalDateTime now = LocalDateTime.now();
 
         // Parse status for filtering (do NOT throw on invalid, just ignore)
@@ -108,9 +106,6 @@ public class EventServiceImpl implements EventService {
 
         // Filter in-memory then paginate
         List<Event> filtered = allEvents.stream()
-                // only events created by this admin
-                .filter(event -> event.getCreatedBy() != null
-                        && event.getCreatedBy().getId().equals(admin.getId()))
                 // status / upcoming / past
                 .filter(event -> {
                     if (statusFilter != null && event.getStatus() != statusFilter) {
@@ -156,21 +151,14 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public EventResponse getEventById(UUID eventId, AdminUser admin) {
-        log.debug("Fetching event by ID={} for admin={}", eventId, admin.getId());
+    public EventResponse getEventById(UUID eventId) {
+        log.debug("Fetching event by ID={} ", eventId);
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> {
                     log.warn("Event not found with id: {}", eventId);
                     return new ResourceNotFoundException("Event not found with id: " + eventId);
                 });
-
-        // Security check: only return event if it belongs to this admin
-        if (event.getCreatedBy() == null || !event.getCreatedBy().getId().equals(admin.getId())) {
-            log.warn("Admin {} attempted to access event {} created by different admin", 
-                    admin.getId(), eventId);
-            throw new ResourceNotFoundException("Event not found with id: " + eventId);
-        }
 
         log.info("Event retrieved successfully. id={}, title={}", event.getId(), event.getTitle());
         return EventResponse.fromEntity(event);
