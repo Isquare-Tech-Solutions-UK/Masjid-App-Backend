@@ -142,10 +142,10 @@ public class AdminAuthController {
     private void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // Valid for localhost
+        cookie.setSecure(true); // Must be true for SameSite=None
         cookie.setPath("/"); // Must be "/" so frontend middleware can read it
         cookie.setMaxAge(REFRESH_TOKEN_COOKIE_MAX_AGE);
-        cookie.setAttribute("SameSite", "Lax"); // Strict can block cross-site (even port difference sometimes)
+        cookie.setAttribute("SameSite", "None"); // Required for cross-site (Vercel -> EC2)
         response.addCookie(cookie);
     }
 
@@ -155,10 +155,10 @@ public class AdminAuthController {
     private void clearRefreshTokenCookie(HttpServletResponse response) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // Valid for localhost
+        cookie.setSecure(true); // Must be true for SameSite=None
         cookie.setPath("/"); // Must match the creation path
         cookie.setMaxAge(0);
-        cookie.setAttribute("SameSite", "Lax");
+        cookie.setAttribute("SameSite", "None");
         response.addCookie(cookie);
     }
 
