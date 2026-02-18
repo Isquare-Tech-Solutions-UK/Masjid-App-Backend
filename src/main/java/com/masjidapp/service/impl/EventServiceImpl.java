@@ -5,6 +5,7 @@ import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.entity.Event;
 import com.masjidapp.entity.EventStatus;
+import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.EventRepository;
 import com.masjidapp.service.EventService;
 import com.masjidapp.service.S3Service;
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -150,6 +152,28 @@ public class EventServiceImpl implements EventService {
         }
 
         return new PageImpl<>(content, pageable, total);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventResponse getEventById(UUID eventId, AdminUser admin) {
+        log.debug("Fetching event by ID={} for admin={}", eventId, admin.getId());
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> {
+                    log.warn("Event not found with id: {}", eventId);
+                    return new ResourceNotFoundException("Event not found with id: " + eventId);
+                });
+
+        // Security check: only return event if it belongs to this admin
+        if (event.getCreatedBy() == null || !event.getCreatedBy().getId().equals(admin.getId())) {
+            log.warn("Admin {} attempted to access event {} created by different admin", 
+                    admin.getId(), eventId);
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+
+        log.info("Event retrieved successfully. id={}, title={}", event.getId(), event.getTitle());
+        return EventResponse.fromEntity(event);
     }
 
     private LocalDateTime parseDate(String date) {
