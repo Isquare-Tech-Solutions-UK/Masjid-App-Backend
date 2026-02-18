@@ -37,6 +37,18 @@ public interface EventService {
      * - Throws ResourceNotFoundException if event not found or doesn't belong to admin.
      */
     EventResponse getEventById(UUID eventId);
+
+    /**
+     * Get published events for members (API key protected).
+     * - Only returns events with status = published.
+     * - Supports upcoming/past and date range filters.
+     */
+    Page<EventResponse> getMemberEvents(
+            Boolean upcoming,
+            Boolean past,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable);
 }
 
 

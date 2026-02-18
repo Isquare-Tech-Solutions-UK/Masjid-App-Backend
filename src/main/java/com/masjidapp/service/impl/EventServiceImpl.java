@@ -149,6 +149,67 @@ public class EventServiceImpl implements EventService {
         return new PageImpl<>(content, pageable, total);
     }
 
+    /**
+     * Get published events for members (API key protected).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventResponse> getMemberEvents(
+            Boolean upcoming,
+            Boolean past,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+
+        log.debug("Fetching member events - upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
+                upcoming, past, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
+
+        List<Event> allEvents = eventRepository.findAll();
+        LocalDateTime now = LocalDateTime.now();
+
+        List<Event> filtered = allEvents.stream()
+                // only published events (exclude drafts and others)
+                .filter(event -> event.getStatus() == EventStatus.published)
+                // upcoming / past
+                .filter(event -> {
+                    if (Boolean.TRUE.equals(upcoming)) {
+                        return !event.getDate().isBefore(now);
+                    }
+                    if (Boolean.TRUE.equals(past)) {
+                        return event.getDate().isBefore(now);
+                    }
+                    return true;
+                })
+                // date range
+                .filter(event -> {
+                    if (startDate != null && endDate != null) {
+                        return !event.getDate().isBefore(startDate) && !event.getDate().isAfter(endDate);
+                    }
+                    return true;
+                })
+                // sort by start_time/date DESC
+                .sorted(Comparator.comparing(Event::getDate).reversed())
+                .collect(Collectors.toList());
+
+        int total = filtered.size();
+        int pageNumber = pageable.getPageNumber();
+        int pageSize = pageable.getPageSize();
+
+        int fromIndex = Math.max(pageNumber * pageSize, 0);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+
+        List<EventResponse> content;
+        if (fromIndex >= total) {
+            content = List.of();
+        } else {
+            content = filtered.subList(fromIndex, toIndex).stream()
+                    .map(EventResponse::fromEntity)
+                    .collect(Collectors.toList());
+        }
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public EventResponse getEventById(UUID eventId) {
