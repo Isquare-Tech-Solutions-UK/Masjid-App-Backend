@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/admin/events")
@@ -99,6 +101,21 @@ public class AdminEventController {
         data.put("pagination", buildPagination(pageResult));
 
         return ResponseEntity.ok(ApiResponse.success(data));
+    }
+
+    /**
+     * GET /admin/events/{id}
+     * Get a single event by ID.
+     * Only returns events created by the authenticated admin.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<EventResponse>> getEventById(@PathVariable UUID id) {
+        log.info("Fetching event by ID: {}", id);
+
+        AdminUser currentAdmin = authRequestContainer.getAdminUser();
+        EventResponse eventResponse = eventService.getEventById(id, currentAdmin);
+
+        return ResponseEntity.ok(ApiResponse.success(eventResponse));
     }
 
     private Map<String, Object> buildPagination(Page<?> page) {
