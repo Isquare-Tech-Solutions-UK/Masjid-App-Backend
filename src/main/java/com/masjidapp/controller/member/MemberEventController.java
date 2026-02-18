@@ -1,4 +1,4 @@
-package com.masjidapp.controller;
+package com.masjidapp.controller.member;
 
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
