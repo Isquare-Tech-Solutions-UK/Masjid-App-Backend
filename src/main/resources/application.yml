@@ -71,3 +71,10 @@ logging:
 app:
   s3:
     bucket-name: masjid-app-media
+
+member:
+  api:
+    key: key789
+
+
+

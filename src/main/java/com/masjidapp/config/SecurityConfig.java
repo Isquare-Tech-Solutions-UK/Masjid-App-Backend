@@ -1,6 +1,7 @@
 package com.masjidapp.config;
 
 import com.masjidapp.security.JwtAuthenticationFilter;
+import com.masjidapp.security.MemberApiKeyFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +29,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
+    private final MemberApiKeyFilter memberApiKeyFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -45,8 +47,8 @@ public class SecurityConfig {
                                 "/actuator/health")
                         .permitAll()
 
-                        // Member endpoints - API Key authentication (to be implemented)
-                        .requestMatchers("/member/**").permitAll() // TODO: Add API Key filter
+                        // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
+                        .requestMatchers("/member/**").permitAll()
 
                         // Webhook endpoints - Stripe signature verification (to be implemented)
                         .requestMatchers("/webhooks/**").permitAll() // TODO: Add Stripe verification
@@ -57,6 +59,9 @@ public class SecurityConfig {
                         // Any other request
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
+                // First enforce API key for /member/** paths
+                .addFilterBefore(memberApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+                // Then handle JWT auth for /admin/** paths
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
