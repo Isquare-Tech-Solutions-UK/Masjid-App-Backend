@@ -1,4 +1,4 @@
-package com.masjidapp.controller;
+package com.masjidapp.controller.member;
 
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
@@ -12,6 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Member Events API with API key validation (handled by MemberApiKeyFilter).
@@ -67,6 +69,16 @@ public class MemberEventController {
         data.put("pagination", buildPagination(pageResult));
 
         return ResponseEntity.ok(ApiResponse.success(data));
+    }
+
+    /**
+     * GET /member/events/{id}
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<EventResponse>> getMemberEventById(@PathVariable UUID id) {
+        log.info("Fetching member event by ID: {}", id);
+        EventResponse eventResponse = eventService.getEventById(id);
+        return ResponseEntity.ok(ApiResponse.success(eventResponse));
     }
 
     private Map<String, Object> buildPagination(Page<?> page) {

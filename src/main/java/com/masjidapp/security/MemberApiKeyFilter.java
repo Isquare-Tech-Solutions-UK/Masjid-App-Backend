@@ -43,7 +43,7 @@ public class MemberApiKeyFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        String path = request.getRequestURI();
+        String path = request.getServletPath();
 
         // Only protect member endpoints
         if (!path.startsWith("/member/")) {

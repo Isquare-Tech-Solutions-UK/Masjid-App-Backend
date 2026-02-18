@@ -74,7 +74,7 @@ app:
 
 member:
   api:
-    key: key789
+    key: ${MEMBER_API_KEY:mbr_9fK3xL2qR7vT8yP1aZ6uW0cD4sH5nJ8eQ2rX7bV1kL9tM3}
 
 
 
