@@ -72,5 +72,14 @@ app:
   s3:
     bucket-name: masjid-app-media
 
+<<<<<<< feature/event-ima-22
+member:
+  api:
+    key: ${MEMBER_API_KEY:mbr_9fK3xL2qR7vT8yP1aZ6uW0cD4sH5nJ8eQ2rX7bV1kL9tM3}
+
+
+
+=======
 cors:
   allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
+>>>>>>> dev
