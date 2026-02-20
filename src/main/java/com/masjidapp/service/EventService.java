@@ -1,6 +1,7 @@
 package com.masjidapp.service;
 
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import org.springframework.data.domain.Page;
@@ -17,6 +18,20 @@ public interface EventService {
      * Create a new event with optional image uploads.
      */
     EventResponse createEvent(CreateEventRequest request, List<MultipartFile> images, AdminUser createdBy);
+
+    /**
+     * Update an existing event by ID.
+     * - Supports partial updates (only non-null fields are changed).
+     * - Handles optional image replacement.
+     * - Enforces business rules on status transitions.
+     */
+    EventResponse updateEvent(
+            UUID eventId,
+            UpdateEventRequest request,
+            List<MultipartFile> newImages,
+            AdminUser updatedBy,
+            String ipAddress,
+            String userAgent);
 
     /**
      * Get all paginated events with filters.

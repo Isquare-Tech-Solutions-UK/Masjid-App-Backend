@@ -1,12 +1,14 @@
 package com.masjidapp.service.impl;
 
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.entity.Event;
 import com.masjidapp.entity.EventStatus;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.EventRepository;
+import com.masjidapp.service.AuditLogService;
 import com.masjidapp.service.EventService;
 import com.masjidapp.service.S3Service;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final S3Service s3Service;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -67,6 +70,101 @@ public class EventServiceImpl implements EventService {
 
         log.info("Event created successfully. id={}, title={}, status={}",
                 saved.getId(), saved.getTitle(), saved.getStatus());
+
+        return EventResponse.fromEntity(saved);
+    }
+
+    /**
+     * Update an existing event by ID.
+     * - Supports partial updates (only non-null fields are applied).
+     * - Handles image replacement: deletes old images from S3, uploads new ones.
+     * - Enforces status rule: cannot revert from published back to draft.
+     * - Sets publishedAt timestamp when event is first published.
+     * - Records an audit trail via AuditLogService.
+     */
+    @Override
+    @Transactional
+    public EventResponse updateEvent(
+            UUID eventId,
+            UpdateEventRequest request,
+            List<MultipartFile> newImages,
+            AdminUser updatedBy,
+            String ipAddress,
+            String userAgent) {
+
+        log.debug("Updating event. id={}, updatedBy={}", eventId,
+                updatedBy != null ? updatedBy.getEmail() : "unknown");
+
+        // 1. Fetch existing event
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> {
+                    log.warn("Update failed: Event not found. id={}", eventId);
+                    return new ResourceNotFoundException("Event not found with id: " + eventId);
+                });
+
+        // 2. Snapshot old state for audit log
+        Event oldSnapshot = snapshotEvent(event);
+
+        // 3. Apply partial field updates (only non-null / non-blank values)
+        if (StringUtils.hasText(request.getTitle())) {
+            event.setTitle(request.getTitle());
+        }
+        if (StringUtils.hasText(request.getSpeaker())) {
+            event.setSpeaker(request.getSpeaker());
+        }
+        if (StringUtils.hasText(request.getDate())) {
+            event.setDate(parseDate(request.getDate()));
+        }
+        if (StringUtils.hasText(request.getLink())) {
+            event.setLink(request.getLink());
+        }
+        if (StringUtils.hasText(request.getDescription())) {
+            event.setDescription(request.getDescription());
+        }
+        if (StringUtils.hasText(request.getVenue())) {
+            event.setVenue(request.getVenue());
+        }
+
+        // 4. Validate and apply status change
+        if (StringUtils.hasText(request.getStatus())) {
+            EventStatus requestedStatus = resolveStatus(request.getStatus());
+            EventStatus currentStatus = event.getStatus();
+
+            // Business rule: cannot revert from published back to draft
+            if (currentStatus == EventStatus.published && requestedStatus == EventStatus.draft) {
+                log.warn("Invalid status transition: published -> draft. eventId={}", eventId);
+                throw new IllegalArgumentException(
+                        "Cannot change event status from 'published' back to 'draft'");
+            }
+
+            // Set publishedAt when event is first published
+            if (requestedStatus == EventStatus.published && currentStatus != EventStatus.published) {
+                event.setPublishedAt(LocalDateTime.now());
+                log.info("Event published for the first time. id={}", eventId);
+            }
+
+            event.setStatus(requestedStatus);
+        }
+
+        // 5. Handle image replacement (delete old → upload new)
+        boolean hasNewImages = newImages != null && !newImages.isEmpty();
+        if (hasNewImages) {
+            List<String> oldImages = event.getImages();
+            if (oldImages != null && !oldImages.isEmpty()) {
+                log.info("Deleting {} old image(s) from S3 for eventId={}", oldImages.size(), eventId);
+                s3Service.deleteEventImages(oldImages);
+            }
+            List<String> uploadedUrls = s3Service.uploadEventImages(newImages);
+            event.setImages(uploadedUrls);
+            log.info("Uploaded {} new image(s) for eventId={}", uploadedUrls.size(), eventId);
+        }
+
+        // 6. Save the updated event
+        Event saved = eventRepository.save(event);
+        log.info("Event updated successfully. id={}, status={}", saved.getId(), saved.getStatus());
+
+        // 7. Record audit trail
+        auditLogService.logEventUpdate(updatedBy, oldSnapshot, saved, ipAddress, userAgent);
 
         return EventResponse.fromEntity(saved);
     }
@@ -245,6 +343,29 @@ public class EventServiceImpl implements EventService {
             log.error("Invalid event status provided. value={}", status);
             throw new IllegalArgumentException("Invalid status. Allowed values: draft, published");
         }
+    }
+
+    /**
+     * Creates a shallow copy of an Event to snapshot its state before updates.
+     * Used by the audit log to record what changed.
+     */
+    private Event snapshotEvent(Event event) {
+        return Event.builder()
+                .id(event.getId())
+                .title(event.getTitle())
+                .speaker(event.getSpeaker())
+                .date(event.getDate())
+                .link(event.getLink())
+                .images(event.getImages() != null ? new java.util.ArrayList<>(event.getImages())
+                        : new java.util.ArrayList<>())
+                .description(event.getDescription())
+                .venue(event.getVenue())
+                .status(event.getStatus())
+                .createdBy(event.getCreatedBy())
+                .publishedAt(event.getPublishedAt())
+                .createdAt(event.getCreatedAt())
+                .updatedAt(event.getUpdatedAt())
+                .build();
     }
 }
 

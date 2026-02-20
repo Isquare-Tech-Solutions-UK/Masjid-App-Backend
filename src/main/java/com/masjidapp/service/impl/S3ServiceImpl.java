@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -95,6 +96,56 @@ public class S3ServiceImpl implements S3Service {
         log.info("S3 Upload Completed: successCount={}", uploadedUrls.size());
 
         return uploadedUrls;
+    }
+
+    /**
+     * Deletes a list of event images from S3 using their public URLs.
+     * Extracts the S3 object key from each URL by stripping the bucket/region host
+     * prefix.
+     *
+     * Example URL: https://bucket.s3.region.amazonaws.com/events/2025/01/uuid-1.jpg
+     * Extracted key: events/2025/01/uuid-1.jpg
+     */
+    @Override
+    public void deleteEventImages(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            log.debug("S3 Delete Skipped: No image URLs provided.");
+            return;
+        }
+
+        log.info("S3 Delete Initiated: totalFiles={}, bucket={}", imageUrls.size(), bucketName);
+
+        String urlPrefix = String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
+
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank()) {
+                log.warn("S3 Delete Skipped: Blank URL encountered.");
+                continue;
+            }
+
+            if (!url.startsWith(urlPrefix)) {
+                log.warn("S3 Delete Skipped: URL does not match expected bucket prefix. url={}", url);
+                continue;
+            }
+
+            String key = url.substring(urlPrefix.length());
+
+            try {
+                DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(key)
+                        .build();
+
+                s3Client.deleteObject(deleteRequest);
+                log.info("S3 Delete Success: key={}", key);
+
+            } catch (Exception ex) {
+                log.error("S3 Delete Failed: key={}, error={}", key, ex.getMessage(), ex);
+                throw new RuntimeException("Failed to delete image from S3: " + key, ex);
+            }
+        }
+
+        log.info("S3 Delete Completed: totalDeleted={}", imageUrls.size());
     }
 
     /**

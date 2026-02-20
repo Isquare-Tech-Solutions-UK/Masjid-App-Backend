@@ -2,9 +2,11 @@ package com.masjidapp.controller.admin;
 
 import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.service.EventService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -114,14 +117,40 @@ public class AdminEventController {
         return ResponseEntity.ok(ApiResponse.success(eventResponse));
     }
 
-    private Map<String, Object> buildPagination(Page<?> page) {
-        Map<String, Object> pagination = new HashMap<>();
-        pagination.put("page", page.getNumber());
-        pagination.put("size", page.getSize());
-        pagination.put("totalElements", page.getTotalElements());
-        pagination.put("totalPages", page.getTotalPages());
-        pagination.put("hasNext", page.hasNext());
-        pagination.put("hasPrevious", page.hasPrevious());
-        return pagination;
-    }
+        /**
+         * PUT /admin/events/{id}
+         * Update event details (partial update) with optional image replacement.
+         * - Deletes old images if new ones are provided, then uploads new images.
+         * - Cannot change status from published to draft.
+         * - Returns updated event.
+         */
+        @PutMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
+                        @PathVariable UUID id,
+                        @Valid @ModelAttribute UpdateEventRequest request,
+                        @RequestPart(value = "images", required = false) List<MultipartFile> images,
+                        HttpServletRequest httpRequest) {
+
+                log.info("Received request to update event. id={}, title={}", id, request.getTitle());
+
+                String ipAddress = httpRequest.getRemoteAddr();
+                String userAgent = httpRequest.getHeader("User-Agent");
+
+                EventResponse updated = eventService.updateEvent(id, request, images,
+                                authRequestContainer.getAdminUser(), ipAddress,
+                                userAgent);
+
+                return ResponseEntity.ok(ApiResponse.success(updated));
+        }
+
+        private Map<String, Object> buildPagination(Page<?> page) {
+                Map<String, Object> pagination = new HashMap<>();
+                pagination.put("page", page.getNumber());
+                pagination.put("size", page.getSize());
+                pagination.put("totalElements", page.getTotalElements());
+                pagination.put("totalPages", page.getTotalPages());
+                pagination.put("hasNext", page.hasNext());
+                pagination.put("hasPrevious", page.hasPrevious());
+                return pagination;
+        }
 }
