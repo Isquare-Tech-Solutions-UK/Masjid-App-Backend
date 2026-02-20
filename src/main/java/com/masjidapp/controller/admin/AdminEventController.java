@@ -138,9 +138,15 @@ public class AdminEventController {
          * - Cannot change status from published to draft.
          * - Returns updated event.
          */
+        @Operation(summary = "Update Event", description = "Update event details with optional image replacement.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event updated successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
         @PutMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
-                        @PathVariable UUID id,
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id,
                         @Valid @ModelAttribute UpdateEventRequest request,
                         @RequestPart(value = "images", required = false) List<MultipartFile> images,
                         HttpServletRequest httpRequest) {
