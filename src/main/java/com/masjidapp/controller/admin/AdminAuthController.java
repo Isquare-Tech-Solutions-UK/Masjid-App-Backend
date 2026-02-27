@@ -10,6 +10,11 @@ import com.masjidapp.dto.response.RefreshTokenResponse;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.repository.AdminUserRepository;
 import com.masjidapp.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,6 +38,7 @@ import java.util.Arrays;
 @RequestMapping("/admin/auth")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Admin Authentication", description = "Endpoints for admin user authentication")
 public class AdminAuthController {
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
@@ -41,10 +47,12 @@ public class AdminAuthController {
     private final AuthService authService;
     private final AdminUserRepository adminUserRepository;
 
-    /**
-     * POST /admin/auth/login
-     * Authenticate admin user and receive JWT tokens
-     */
+    @Operation(summary = "Admin Login", description = "Authenticate an admin user with email and password. Returns a JWT access token in the response body and sets a refresh token as an HttpOnly cookie.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login successful"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request,
