@@ -71,6 +71,11 @@ public class AdminAuthController {
      * POST /admin/auth/refresh
      * Get new access token using refresh token cookie
      */
+    @Operation(summary = "Refresh Token", description = "Get a new access token using the refresh token stored in HttpOnly cookie.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - invalid refresh token", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshToken(HttpServletRequest request) {
         String refreshToken = extractRefreshTokenFromCookie(request);
@@ -89,6 +94,11 @@ public class AdminAuthController {
      * POST /admin/auth/logout
      * Invalidate refresh token and clear cookies
      */
+    @Operation(summary = "Admin Logout", description = "Invalidate the current refresh token and clear the refresh token cookie.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Logged out successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<MessageResponse>> logout(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -113,6 +123,11 @@ public class AdminAuthController {
      * GET /admin/auth/me
      * Get details of currently authenticated admin user
      */
+    @Operation(summary = "Get Current User", description = "Get details of the currently authenticated admin user.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Current user details retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<AdminUserResponse>> getCurrentUser(
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -128,6 +143,12 @@ public class AdminAuthController {
      * PUT /admin/auth/change-password
      * Change current user's password
      */
+    @Operation(summary = "Change Password", description = "Change the password of the currently authenticated admin user.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password changed successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error or invalid password", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse<MessageResponse>> changePassword(
             @AuthenticationPrincipal UserDetails userDetails,
