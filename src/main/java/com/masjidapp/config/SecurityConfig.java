@@ -49,7 +49,12 @@ public class SecurityConfig {
                                 "/admin/auth/login",
                                 "/admin/auth/refresh",
                                 "/admin/auth/logout",
-                                "/actuator/health")
+                                "/actuator/health",
+                                // Swagger UI & OpenAPI docs
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs")
                         .permitAll()
 
                         // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
