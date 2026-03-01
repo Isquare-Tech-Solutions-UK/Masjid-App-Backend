@@ -23,7 +23,7 @@ public class OpenApiConfig {
                                 .description("Local Server");
 
                 Server devServer = new Server()
-                                .url("http://3.6.40.125.nip.io")
+                                .url("https://3.6.40.125.nip.io")
                                 .description("Dev Server (AWS)");
 
                 return new OpenAPI()
