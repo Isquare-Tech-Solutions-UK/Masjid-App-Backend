@@ -44,6 +44,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin Prayer Times", description = "Endpoints for managing daily prayer times — CRUD operations and bulk import")
+@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
 public class AdminPrayerTimeController {
 
     private final PrayerTimeService prayerTimeService;

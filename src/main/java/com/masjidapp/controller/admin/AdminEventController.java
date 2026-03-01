@@ -46,6 +46,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin Events", description = "Endpoints for managing masjid events — create, list, and view event details")
+@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
 public class AdminEventController {
 
         private final EventService eventService;
