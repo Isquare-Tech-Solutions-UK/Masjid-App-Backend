@@ -113,6 +113,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
+                "http://3.6.40.125.nip.io",
                 "https://masjid-app.vercel.app",
                 "https://*.vercel.app" // Allows Vercel preview deployments
         ));
