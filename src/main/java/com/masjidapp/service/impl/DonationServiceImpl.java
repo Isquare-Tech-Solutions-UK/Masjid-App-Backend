@@ -9,6 +9,7 @@ import com.masjidapp.exception.MARequestException;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.CampaignRepository;
 import com.masjidapp.repository.DonationRepository;
+import com.masjidapp.repository.SettingsRepository;
 import com.masjidapp.service.DonationService;
 import com.stripe.exception.StripeException;
 import lombok.RequiredArgsConstructor;
@@ -29,15 +30,24 @@ public class DonationServiceImpl implements DonationService {
 
     private final DonationRepository donationRepository;
     private final CampaignRepository campaignRepository;
+    private final SettingsRepository settingsRepository;
     private final StripeServiceImpl stripeService;
 
     @Override
     @Transactional
     public Map<String, String> donateToCampaign(String campaignId, DonationCreateRequest donationCreateRequest) {
+        String stripeAccountId = settingsRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new MARequestException("Masjid settings not configured"))
+                .getStripeAccountId();
+        if (stripeAccountId == null) {
+            throw new MARequestException("Stripe is not connected. Please connect your Stripe account in Settings.");
+        }
+
         try {
-            Campaign campaign = campaignRepository.findById(UUID.fromString(donationCreateRequest.getCampaignId()))
-                    .orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + donationCreateRequest.getCampaignId()));
-            Donation donation = Donation.builder().donorName(donationCreateRequest.getDonorName())
+            Campaign campaign = campaignRepository.findById(UUID.fromString(campaignId))
+                    .orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + campaignId));
+            Donation donation = Donation.builder()
+                    .donorName(donationCreateRequest.getDonorName())
                     .donorEmail(donationCreateRequest.getDonorEmail())
                     .campaign(campaign)
                     .amount(donationCreateRequest.getAmount())
@@ -48,8 +58,8 @@ public class DonationServiceImpl implements DonationService {
                     .createdAt(Instant.now())
                     .build();
             Donation saved = donationRepository.save(donation);
-            Map<String,String> sessionMap = stripeService.createCheckoutSession(saved.getId(), campaignId, campaign.getTitle(),
-                    donationCreateRequest);
+            Map<String, String> sessionMap = stripeService.createCheckoutSession(
+                    saved.getId(), campaignId, campaign.getTitle(), stripeAccountId, donationCreateRequest);
             saved.setStripeCheckoutSessionId(sessionMap.get("sessionId"));
             saved.setStripePaymentIntentId(sessionMap.get("paymentIntentId"));
             saved.setCurrency(sessionMap.get("currency"));
@@ -59,7 +69,7 @@ public class DonationServiceImpl implements DonationService {
                 saved.setTotalCharged(saved.getAmount().add(saved.getProcessingFee()));
             }
             return sessionMap;
-        } catch (StripeException | RuntimeException e ) {
+        } catch (StripeException | RuntimeException e) {
             throw new MARequestException("Error in create donation", e);
         }
     }
@@ -81,7 +91,7 @@ public class DonationServiceImpl implements DonationService {
             return;
         }
         campaignRepository.incrementCampaign(
-                UUID.fromString(donationId),
+                UUID.fromString(campaignId),
                 amount
         );
     }

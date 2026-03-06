@@ -20,5 +20,13 @@ public class SecurityUtil {
         }
     }
 
+    public UUID getUserId() {
+        try {
+            log.info("{}", SecurityContextHolder.getContext().getAuthentication().getName());
+            return UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
 }
