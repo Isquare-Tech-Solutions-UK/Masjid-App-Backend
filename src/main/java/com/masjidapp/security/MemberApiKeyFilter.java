@@ -60,7 +60,7 @@ public class MemberApiKeyFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.getWriter().write(
-                    "{\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"Invalid or missing API key\"}}");
+                    "{\"error\":{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid or missing API key\"}}");
             return;
         }
 
