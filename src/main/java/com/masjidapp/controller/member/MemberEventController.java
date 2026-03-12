@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,34 +30,46 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Member Events API with API key validation (handled by MemberApiKeyFilter).
- *
- * GET /member/events
- * - Only returns published events (no drafts).
- * - Supports status=upcoming/past, startDate, endDate, page, size.
- * - Sorted by start_time/date DESC.
+ * Member Events API — read-only endpoints for the mobile app.
+ * Protected by MemberApiKeyFilter (X-API-KEY header).
  */
 @RestController
 @RequestMapping("/member/events")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Member Events", description = "Public endpoints for viewing masjid events")
+@SecurityRequirement(name = "apiKeyAuth")
 public class MemberEventController {
 
     private final EventService eventService;
 
-    @Operation(summary = "List Events", description = "Returns all published events for members with optional filters and pagination.")
+    /**
+     * GET /member/events
+     * Returns all published events for members with optional filters and pagination.
+     */
+    @Operation(
+            summary = "List Events",
+            description = "Returns all published events for members with optional filters and pagination.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Events retrieved successfully"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid API Key", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Events retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "Invalid or missing API key",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
     })
     @GetMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberEvents(
-            @Parameter(description = "Filter by status (upcoming, past)") @RequestParam(required = false) String status,
-            @Parameter(description = "Start date range (ISO-8601)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @Parameter(description = "End date range (ISO-8601)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @Parameter(description = "Page number (0-indexed)", example = "0") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size", example = "20") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Filter by status (upcoming, past)")
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Start date range (ISO-8601)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @Parameter(description = "End date range (ISO-8601)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @Parameter(description = "Page number (0-indexed)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size", example = "20")
+            @RequestParam(defaultValue = "20") int size) {
 
         Boolean upcoming = null;
         Boolean past = null;
@@ -83,16 +96,27 @@ public class MemberEventController {
 
     /**
      * GET /member/events/{id}
+     * Retrieves a single published event by its UUID.
      */
-    @Operation(summary = "Get Event by ID", description = "Retrieve a single published event by its UUID.")
+    @Operation(
+            summary = "Get Event by ID",
+            description = "Retrieve a single published event by its UUID.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event retrieved successfully"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid API Key", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Event retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "Invalid or missing API key",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "Event not found",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
     })
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<EventResponse>> getMemberEventById(
-            @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id) {
+            @Parameter(description = "UUID of the event", required = true)
+            @PathVariable UUID id) {
         log.info("Fetching member event by ID: {}", id);
         EventResponse eventResponse = eventService.getEventById(id);
         return ResponseEntity.ok(ApiResponse.success(eventResponse));
@@ -108,4 +132,6 @@ public class MemberEventController {
         pagination.put("hasPrevious", page.hasPrevious());
         return pagination;
     }
+
 }
+
