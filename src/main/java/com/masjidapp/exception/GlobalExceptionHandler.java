@@ -217,4 +217,22 @@ public class GlobalExceptionHandler {
                 }
         }
 
+        /**
+         * Handle request not process exception
+         */
+        @ExceptionHandler(MARequestException.class)
+        public ResponseEntity<ErrorResponse> handleMARequest(MARequestException ex) {
+                log.warn("Request unable to processed : {}", ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("BAD_REQUEST")
+                                                .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
 }

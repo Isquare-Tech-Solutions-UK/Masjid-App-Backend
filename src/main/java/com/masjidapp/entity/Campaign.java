@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,7 +21,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcType;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.PostgreSQLEnumJdbcType;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "campaigns")
@@ -65,7 +68,9 @@ public class Campaign {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    private String media;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> media;
 
     @ManyToOne
     @JoinColumn(name = "created_by")
