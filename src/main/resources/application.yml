@@ -52,6 +52,7 @@ management:
 # Server Configuration
 server:
   port: 8080
+  forward-headers-strategy: native
   servlet:
     context-path: /api/v1
 
