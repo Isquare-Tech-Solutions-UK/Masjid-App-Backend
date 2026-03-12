@@ -34,6 +34,16 @@ public interface EventService {
             String userAgent);
 
     /**
+     * Delete a draft event.
+     */
+    void deleteEvent(UUID eventId, AdminUser deletedBy);
+
+    /**
+     * Change the status of an event.
+     */
+    EventResponse changeEventStatus(UUID eventId, String status, AdminUser updatedBy, String ipAddress, String userAgent);
+
+    /**
      * Get all paginated events with filters.
      * - Returns all events (no admin filtering).
      * - Supports status, upcoming/past, and date range filters.
@@ -44,6 +54,7 @@ public interface EventService {
             Boolean past,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            String search,
             Pageable pageable);
 
     /**
