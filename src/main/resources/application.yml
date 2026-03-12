@@ -13,7 +13,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/masjid_app
     username: ${DB_USERNAME:syedfardeen}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   # JPA Configuration
@@ -74,7 +74,7 @@ app:
 
 member:
   api:
-    key: ${MEMBER_API_KEY:mbr_9fK3xL2qR7vT8yP1aZ6uW0cD4sH5nJ8eQ2rX7bV1kL9tM3}
+    key: ${MEMBER_API_KEY:d4f8a1b2-7e3c-4f9a-b5d6-1a2b3c4d5e6f}
 
 cors:
   allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
