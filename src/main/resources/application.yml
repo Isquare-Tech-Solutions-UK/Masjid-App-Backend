@@ -1,12 +1,19 @@
 spring:
   application:
     name: masjid-app-backend
+  servlet:
+
+    multipart:
+      enabled: true
+      max-file-size: 10MB          # Per file limit
+      max-request-size: 50MB       # Total for all files in one request
+      file-size-threshold: 2KB
 
   # Database Configuration
   datasource:
     url: jdbc:postgresql://localhost:5432/masjid_app
     username: ${DB_USERNAME:syedfardeen}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   # JPA Configuration
@@ -25,7 +32,14 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-# Actuator Configuration
+  cloud:
+    aws:
+      region:
+        static: ap-south-1
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID}
+        secret-key: ${AWS_SECRET_ACCESS_KEY}
+
 management:
   endpoints:
     web:
@@ -38,6 +52,7 @@ management:
 # Server Configuration
 server:
   port: 8080
+  forward-headers-strategy: native
   servlet:
     context-path: /api/v1
 
@@ -53,3 +68,15 @@ logging:
     root: INFO
     com.masjidapp: DEBUG
     org.springframework.security: DEBUG
+
+app:
+  s3:
+    bucket-name: masjid-app-media
+
+member:
+  api:
+    key: ${MEMBER_API_KEY:d4f8a1b2-7e3c-4f9a-b5d6-1a2b3c4d5e6f}
+
+cors:
+  allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
+

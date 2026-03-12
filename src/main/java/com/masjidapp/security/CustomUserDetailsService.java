@@ -1,5 +1,6 @@
 package com.masjidapp.security;
 
+import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.repository.AdminUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,11 +18,14 @@ import java.util.Collections;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final AdminUserRepository adminUserRepository;
+    private final AuthRequestContainer authRequestContainer;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AdminUser adminUser = adminUserRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+
+        authRequestContainer.setAdminUser(adminUser);
 
         return new User(
                 adminUser.getEmail(),

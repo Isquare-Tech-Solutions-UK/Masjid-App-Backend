@@ -1,6 +1,8 @@
 package com.masjidapp.config;
 
 import com.masjidapp.security.JwtAuthenticationFilter;
+import com.masjidapp.security.MemberApiKeyFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +20,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -27,6 +34,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
+    private final MemberApiKeyFilter memberApiKeyFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -40,11 +48,17 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/admin/auth/login",
                                 "/admin/auth/refresh",
-                                "/admin/auth/logout")
+                                "/admin/auth/logout",
+                                "/actuator/health",
+                                // Swagger UI & OpenAPI docs
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs")
                         .permitAll()
 
-                        // Member endpoints - API Key authentication (to be implemented)
-                        .requestMatchers("/member/**").permitAll() // TODO: Add API Key filter
+                        // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
+                        .requestMatchers("/member/**").permitAll()
 
                         // Webhook endpoints - Stripe signature verification (to be implemented)
                         .requestMatchers("/webhooks/**").permitAll() // TODO: Add Stripe verification
@@ -55,7 +69,23 @@ public class SecurityConfig {
                         // Any other request
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // First enforce API key for /member/** paths
+                .addFilterBefore(memberApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+                // Then handle JWT auth for /admin/** paths
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter()
+                                    .write("{\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"Unauthorized\"}}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter()
+                                    .write("{\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"Access Denied\"}}");
+                        }));
 
         return http.build();
     }
@@ -76,6 +106,24 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000",
+                "https://3.6.40.125.nip.io",
+                "https://masjid-app.vercel.app",
+                "https://*.vercel.app" // Allows Vercel preview deployments
+        ));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
 }

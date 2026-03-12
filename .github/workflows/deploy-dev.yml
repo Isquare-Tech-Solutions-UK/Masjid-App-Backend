@@ -51,15 +51,15 @@ jobs:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          script: mkdir -p ~/masjid-app
+          script: mkdir -p ~/masjid-app/nginx/conf.d
 
-      - name: Copy docker-compose.dev.yml to EC2
+      - name: Copy docker-compose and nginx config to EC2
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          source: "./docker-compose.dev.yml"
+          source: "./docker-compose.dev.yml,./nginx/conf.d/app.conf"
           target: "~/masjid-app"
 
       - name: Deploy to EC2
@@ -73,6 +73,9 @@ jobs:
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             export DB_USERNAME=${{ secrets.DEV_DB_USERNAME }}
             export DB_PASSWORD=${{ secrets.DEV_DB_PASSWORD }}
-            docker-compose -f docker-compose.dev.yml pull
-            docker-compose -f docker-compose.dev.yml up -d
+            # Pull latest images
+            docker compose -f docker-compose.dev.yml pull
+            # Recreate only changed services
+            docker compose -f docker-compose.dev.yml up -d --force-recreate --remove-orphans
+            # Clean up unused images
             docker image prune -f
