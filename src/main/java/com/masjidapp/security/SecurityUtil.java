@@ -11,10 +11,10 @@ public class SecurityUtil {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityUtil.class);
 
-    public UUID getUserId() {
+    public String getUserName() {
         try {
             log.info("{}", SecurityContextHolder.getContext().getAuthentication().getName());
-            return UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
+            return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
             return null;
         }

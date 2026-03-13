@@ -1,35 +1,62 @@
 package com.masjidapp.controller.campaign;
 
 import java.util.UUID;
+
+import com.masjidapp.dto.campaign.CampaignDto;
+import com.masjidapp.dto.donation.DonationDto;
+import com.masjidapp.dto.request.CampaignCreateRequest;
+import com.masjidapp.dto.request.CampaignUpdateRequest;
+import com.masjidapp.service.CampaignService;
+import com.masjidapp.service.impl.CampaignDonationQueryService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/admin/campaigns")
+@RequiredArgsConstructor
 public class CampaignController {
 
-    @GetMapping("/admin/campaign")
-    public void getAllCampaigns() {
-        // TODO
+    private final CampaignService campaignService;
+    private final CampaignDonationQueryService campaignDonationQueryService;
+
+    @GetMapping
+    public ResponseEntity<Page<CampaignDto>> getAllCampaigns(@PageableDefault(page = 0, size = 5) Pageable pageable) {
+        return ResponseEntity.ok(campaignService.getAllCampaigns(pageable));
     }
 
-    @GetMapping("/admin/campaigns/{id}")
-    public void getCampaign(@PathVariable("id") UUID id) {
-        // TODO
+    @GetMapping("{id}")
+    public ResponseEntity<CampaignDto> getCampaign(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(campaignService.getCampaignById(id));
     }
 
-    @PostMapping("/admin/campaigns")
-    public void createCampaign() {
-        // TODO
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<CampaignDto> createCampaign(@Valid @RequestBody CampaignCreateRequest campaignCreateRequest) {
+        return ResponseEntity.ok(campaignService.createCampaign(campaignCreateRequest));
     }
 
-    @PutMapping("/admin/campaigns/{id}")
-    public void updateCampaign() {
-        // TODO
+    @PutMapping("{id}")
+    public ResponseEntity<CampaignDto> updateCampaign(@PathVariable("id") UUID id, @Valid @RequestBody CampaignUpdateRequest campaignUpdateRequest) {
+        return ResponseEntity.ok(campaignService.updateCampaign(id, campaignUpdateRequest));
+    }
+
+    @GetMapping("{id}/donations")
+    public ResponseEntity<Page<DonationDto>> getCampaignDonationSummary(@PathVariable("id") UUID id,
+                                                                  @PageableDefault(page = 0, size = 10) Pageable pageable) {
+        return ResponseEntity.ok(campaignDonationQueryService.getCampaignDonationSummary(id, pageable));
     }
 
 }

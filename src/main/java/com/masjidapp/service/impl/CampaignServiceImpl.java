@@ -2,6 +2,7 @@ package com.masjidapp.service.impl;
 
 import com.masjidapp.dto.campaign.CampaignDto;
 import com.masjidapp.dto.request.CampaignCreateRequest;
+import com.masjidapp.dto.request.CampaignUpdateRequest;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.entity.Campaign;
 import com.masjidapp.entity.CampaignStatus;
@@ -13,7 +14,10 @@ import com.masjidapp.security.SecurityUtil;
 import com.masjidapp.service.CampaignService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,13 +34,11 @@ public class CampaignServiceImpl implements CampaignService {
     private final AdminUserRepository adminUserRepository;
 
     @Override
-    public List<CampaignDto> getAllCampaigns() {
+    public Page<CampaignDto> getAllCampaigns(Pageable pageable) {
 
         log.info("Fetching all active campaigns");
-        return campaignRepository.findByOrderByStatusAndEndDateDesc()
-                .stream()
-                .map(CampaignDto::toDto)
-                .toList();
+        Page<Campaign> campaigns = campaignRepository.findByOrderByStartDateDescEndDateAsc(pageable);
+        return campaigns.map(CampaignDto::toDto);
     }
 
     @Override
@@ -58,7 +60,10 @@ public class CampaignServiceImpl implements CampaignService {
                     .title(request.getTitle())
                     .description(request.getDescription())
                     .category(request.getCategory())
-                    .goalAmount(request.getGoalAmount());
+                    .goalAmount(request.getGoalAmount())
+                    .startDate(request.getStartDate())
+                    .endDate(request.getEndDate())
+                    .createdAt(Instant.now());
 
             if(CampaignStatus.active.name().equalsIgnoreCase(request.getStatus().name())) {
                 campaignBuilder.status(CampaignStatus.active);
@@ -67,7 +72,8 @@ public class CampaignServiceImpl implements CampaignService {
                 campaignBuilder.status(CampaignStatus.draft);
             }
 
-            AdminUser adminUser = adminUserRepository.findById(securityUtil.getUserId())
+            AdminUser adminUser = Optional.of(securityUtil.getUserName())
+                    .flatMap(adminUserRepository::findByEmail)
                     .orElseThrow(() -> new ResourceNotFoundException("User not found"));
             campaignBuilder.createdBy(adminUser);
 
@@ -79,8 +85,9 @@ public class CampaignServiceImpl implements CampaignService {
         }
     }
 
+    @Transactional
     @Override
-    public CampaignDto updateCampaign(UUID id, CampaignDto campaignDto) {
+    public CampaignDto updateCampaign(UUID id, CampaignUpdateRequest request) {
 
         log.info("Updating campaign with id: {}", id);
         Campaign campaign = Optional.of(id).flatMap(campaignRepository::findById
@@ -90,27 +97,28 @@ public class CampaignServiceImpl implements CampaignService {
             throw new MARequestException("Cannot update a campaign that is cancelled or completed");
         }
 
-        if (campaign.getStatus() == CampaignStatus.active && campaignDto.getStatus() == CampaignStatus.draft) {
-            throw new MARequestException("Cannot change status from active to draft");
+        if ((campaign.getStatus() == CampaignStatus.active || campaign.getStatus() == CampaignStatus.paused)
+                && request.getStatus() == CampaignStatus.draft) {
+            throw new MARequestException("Cannot change status from active/paused to draft");
         }
 
-        if (campaign.getStatus() == CampaignStatus.active && campaign.getGoalAmount().compareTo(campaignDto.getGoalAmount()) != 0 &&
-                campaign.getRaisedAmount().compareTo(campaignDto.getGoalAmount()) >= 0) {
+        if (campaign.getStatus() == CampaignStatus.active && campaign.getGoalAmount().compareTo(request.getGoalAmount()) != 0 &&
+                (campaign.getRaisedAmount() != null && campaign.getRaisedAmount().compareTo(request.getGoalAmount()) >= 0)) {
             throw new MARequestException("The new goal amount cannot be less than or equal to the raised amount for an active campaign");
         }
 
-        if (campaign.getStatus() == CampaignStatus.draft && campaignDto.getStatus() == CampaignStatus.active) {
+        if (campaign.getStatus() == CampaignStatus.draft && request.getStatus() == CampaignStatus.active) {
             campaign.setPublishedAt(Instant.now());
-        } else if (campaign.getStatus() == CampaignStatus.active && (campaignDto.getStatus() == CampaignStatus.completed
-                || campaignDto.getStatus() == CampaignStatus.cancelled)) {
+        } else if (request.getStatus() == CampaignStatus.completed || request.getStatus() == CampaignStatus.cancelled) {
             campaign.setEndedAt(Instant.now());
         }
 
-        campaign.setTitle(campaignDto.getTitle());
-        campaign.setDescription(campaignDto.getDescription());
-        campaign.setCategory(campaignDto.getCategory());
-        campaign.setGoalAmount(campaignDto.getGoalAmount());
-        campaign.setStatus(campaignDto.getStatus());
+        campaign.setTitle(request.getTitle());
+        campaign.setDescription(request.getDescription());
+        campaign.setCategory(request.getCategory());
+        campaign.setGoalAmount(request.getGoalAmount());
+        campaign.setStatus(request.getStatus());
+        campaign.setUpdatedAt(Instant.now());
         return CampaignDto.toDto(campaign);
     }
 
