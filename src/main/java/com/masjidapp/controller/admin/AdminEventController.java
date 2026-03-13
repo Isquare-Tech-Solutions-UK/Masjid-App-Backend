@@ -2,9 +2,11 @@ package com.masjidapp.controller.admin;
 
 import com.masjidapp.dto.container.AuthRequestContainer;
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.service.EventService;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -26,6 +28,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,11 +67,27 @@ public class AdminEventController {
         })
         @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         public ResponseEntity<ApiResponse<EventResponse>> createEvent(
-                        @Valid @ModelAttribute CreateEventRequest request,
-                        @RequestPart(value = "images", required = false) List<MultipartFile> images) {
+                        @Parameter(description = "Event Title") @RequestParam("title") String title,
+                        @Parameter(description = "Speaker Name") @RequestParam("speaker") String speaker,
+                        @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam("date") String date,
+                        @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
+                        @Parameter(description = "Event Description") @RequestParam("description") String description,
+                        @Parameter(description = "Event Venue") @RequestParam("venue") String venue,
+                        @Parameter(description = "Status (draft, published)", example = "draft") @RequestParam(value = "status", required = false, defaultValue = "draft") String status,
+                        @Parameter(description = "Event Images") @RequestPart(value = "images", required = false) List<MultipartFile> images) {
 
                 log.info("Received request to create event. title={}, speaker={}, date={}",
-                                request.getTitle(), request.getSpeaker(), request.getDate());
+                                title, speaker, date);
+
+                CreateEventRequest request = CreateEventRequest.builder()
+                                .title(title)
+                                .speaker(speaker)
+                                .date(date)
+                                .link(link)
+                                .description(description)
+                                .venue(venue)
+                                .status(status)
+                                .build();
 
                 EventResponse eventResponse = eventService.createEvent(request, images,
                                 authRequestContainer.getAdminUser());
@@ -90,15 +112,16 @@ public class AdminEventController {
                         @Parameter(description = "Past events only") @RequestParam(required = false) Boolean past,
                         @Parameter(description = "Start date range (ISO-8601)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
                         @Parameter(description = "End date range (ISO-8601)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+                        @Parameter(description = "Search title or description") @RequestParam(required = false) String search,
                         @Parameter(description = "Page number (0-indexed)", example = "0") @RequestParam(defaultValue = "0") int page,
                         @Parameter(description = "Page size", example = "20") @RequestParam(defaultValue = "20") int size) {
 
-                log.info("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
-                                status, upcoming, past, startDate, endDate, page, size);
+                log.info("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, search={}, page={}, size={}",
+                                status, upcoming, past, startDate, endDate, search, page, size);
 
                 Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
                 Page<EventResponse> pageResult = eventService.getAdminEvents(
-                                status, upcoming, past, startDate, endDate, pageable);
+                                status, upcoming, past, startDate, endDate, search, pageable);
 
                 Map<String, Object> data = new HashMap<>();
                 data.put("content", pageResult.getContent());
@@ -128,6 +151,102 @@ public class AdminEventController {
                 return ResponseEntity.ok(ApiResponse.success(eventResponse));
         }
 
+        /**
+         * PUT /admin/events/{id}
+         * Update event details (partial update) with optional image replacement.
+         * - Deletes old images if new ones are provided, then uploads new images.
+         * - Cannot change status from published to draft.
+         * - Returns updated event.
+         */
+        @Operation(summary = "Update Event", description = "Update event details with optional image replacement.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event updated successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
+        @PutMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id,
+                        @Parameter(description = "Event Title") @RequestParam(value = "title", required = false) String title,
+                        @Parameter(description = "Speaker Name") @RequestParam(value = "speaker", required = false) String speaker,
+                        @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam(value = "date", required = false) String date,
+                        @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
+                        @Parameter(description = "Event Description") @RequestParam(value = "description", required = false) String description,
+                        @Parameter(description = "Event Venue") @RequestParam(value = "venue", required = false) String venue,
+                        @Parameter(description = "Status (draft, published)") @RequestParam(value = "status", required = false) String status,
+                        @Parameter(description = "New Images to replace old ones") @RequestPart(value = "images", required = false) List<MultipartFile> images,
+                        HttpServletRequest httpRequest) {
+
+                log.info("Received request to update event. id={}, title={}", id, title);
+
+                UpdateEventRequest request = new UpdateEventRequest();
+                request.setTitle(title);
+                request.setSpeaker(speaker);
+                request.setDate(date);
+                request.setLink(link);
+                request.setDescription(description);
+                request.setVenue(venue);
+                request.setStatus(status);
+
+                String ipAddress = httpRequest.getRemoteAddr();
+                String userAgent = httpRequest.getHeader("User-Agent");
+
+                EventResponse updated = eventService.updateEvent(id, request, images,
+                                authRequestContainer.getAdminUser(), ipAddress,
+                                userAgent);
+
+                return ResponseEntity.ok(ApiResponse.success(updated));
+        }
+
+        /**
+         * DELETE /admin/events/{id}
+         * Delete a draft event.
+         */
+        @Operation(summary = "Delete Event", description = "Delete an event. Only events with 'draft' status can be deleted.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Event deleted successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Cannot delete non-draft event", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
+        @DeleteMapping("/{id}")
+        public ResponseEntity<Void> deleteEvent(
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id) {
+                log.info("Received request to delete event: {}", id);
+                eventService.deleteEvent(id, authRequestContainer.getAdminUser());
+                return ResponseEntity.noContent().build();
+        }
+
+        public static class StatusUpdateRequest {
+                @jakarta.validation.constraints.NotBlank(message = "Status is required")
+                public String status;
+        }
+
+        /**
+         * PATCH /admin/events/{id}/status
+         * Change the status of an event.
+         */
+        @Operation(summary = "Change Event Status", description = "Update the status for a specific event (e.g., draft to published). Cannot change from published back to draft.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event status updated successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid status transition", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
+        @PatchMapping("/{id}/status")
+        public ResponseEntity<ApiResponse<EventResponse>> changeEventStatus(
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id,
+                        @Valid @RequestBody StatusUpdateRequest request,
+                        HttpServletRequest httpRequest) {
+
+                log.info("Received request to change event status. id={}, newStatus={}", id, request.status);
+
+                String ipAddress = httpRequest.getRemoteAddr();
+                String userAgent = httpRequest.getHeader("User-Agent");
+
+                EventResponse updated = eventService.changeEventStatus(id, request.status,
+                                authRequestContainer.getAdminUser(), ipAddress, userAgent);
+
+                return ResponseEntity.ok(ApiResponse.success(updated));
+        }
         private Map<String, Object> buildPagination(Page<?> page) {
                 Map<String, Object> pagination = new HashMap<>();
                 pagination.put("page", page.getNumber());

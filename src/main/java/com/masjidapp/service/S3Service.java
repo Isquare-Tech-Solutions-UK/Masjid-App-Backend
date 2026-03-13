@@ -13,6 +13,12 @@ public interface S3Service {
      * @return list of public URLs corresponding to uploaded images
      */
     List<String> uploadEventImages(List<MultipartFile> files);
+
+    /**
+     * Delete a list of event images from S3 by their public URLs.
+     * Extracts the S3 object key from each URL and deletes it.
+     *
+     * @param imageUrls list of public S3 URLs to delete
+     */
+    void deleteEventImages(List<String> imageUrls);
 }
-
-

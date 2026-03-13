@@ -1,12 +1,14 @@
 package com.masjidapp.service.impl;
 
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.entity.Event;
 import com.masjidapp.entity.EventStatus;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.EventRepository;
+import com.masjidapp.service.AuditLogService;
 import com.masjidapp.service.EventService;
 import com.masjidapp.service.S3Service;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final S3Service s3Service;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -72,6 +75,101 @@ public class EventServiceImpl implements EventService {
     }
 
     /**
+     * Update an existing event by ID.
+     * - Supports partial updates (only non-null fields are applied).
+     * - Handles image replacement: deletes old images from S3, uploads new ones.
+     * - Enforces status rule: cannot revert from published back to draft.
+     * - Sets publishedAt timestamp when event is first published.
+     * - Records an audit trail via AuditLogService.
+     */
+    @Override
+    @Transactional
+    public EventResponse updateEvent(
+            UUID eventId,
+            UpdateEventRequest request,
+            List<MultipartFile> newImages,
+            AdminUser updatedBy,
+            String ipAddress,
+            String userAgent) {
+
+        log.debug("Updating event. id={}, updatedBy={}", eventId,
+                updatedBy != null ? updatedBy.getEmail() : "unknown");
+
+        // 1. Fetch existing event
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> {
+                    log.warn("Update failed: Event not found. id={}", eventId);
+                    return new ResourceNotFoundException("Event not found with id: " + eventId);
+                });
+
+        // 2. Snapshot old state for audit log
+        Event oldSnapshot = snapshotEvent(event);
+
+        // 3. Apply partial field updates (only non-null / non-blank values)
+        if (StringUtils.hasText(request.getTitle())) {
+            event.setTitle(request.getTitle());
+        }
+        if (StringUtils.hasText(request.getSpeaker())) {
+            event.setSpeaker(request.getSpeaker());
+        }
+        if (StringUtils.hasText(request.getDate())) {
+            event.setDate(parseDate(request.getDate()));
+        }
+        if (StringUtils.hasText(request.getLink())) {
+            event.setLink(request.getLink());
+        }
+        if (StringUtils.hasText(request.getDescription())) {
+            event.setDescription(request.getDescription());
+        }
+        if (StringUtils.hasText(request.getVenue())) {
+            event.setVenue(request.getVenue());
+        }
+
+        // 4. Validate and apply status change
+        if (StringUtils.hasText(request.getStatus())) {
+            EventStatus requestedStatus = resolveStatus(request.getStatus());
+            EventStatus currentStatus = event.getStatus();
+
+            // Business rule: cannot revert from published back to draft
+            if (currentStatus == EventStatus.published && requestedStatus == EventStatus.draft) {
+                log.warn("Invalid status transition: published -> draft. eventId={}", eventId);
+                throw new IllegalArgumentException(
+                        "Cannot change event status from 'published' back to 'draft'");
+            }
+
+            // Set publishedAt when event is first published
+            if (requestedStatus == EventStatus.published && currentStatus != EventStatus.published) {
+                event.setPublishedAt(LocalDateTime.now());
+                log.info("Event published for the first time. id={}", eventId);
+            }
+
+            event.setStatus(requestedStatus);
+        }
+
+        // 5. Handle image replacement (delete old → upload new)
+        boolean hasNewImages = newImages != null && !newImages.isEmpty();
+        if (hasNewImages) {
+            List<String> oldImages = event.getImages();
+            if (oldImages != null && !oldImages.isEmpty()) {
+                log.info("Deleting {} old image(s) from S3 for eventId={}", oldImages.size(), eventId);
+                s3Service.deleteEventImages(oldImages);
+            }
+            List<String> uploadedUrls = s3Service.uploadEventImages(newImages);
+            event.setImages(uploadedUrls);
+            log.info("Uploaded {} new image(s) for eventId={}", uploadedUrls.size(), eventId);
+        }
+
+        // 6. Save the updated event
+        Event saved = eventRepository.save(event);
+        log.info("Event updated successfully. id={}, status={}", saved.getId(), saved.getStatus());
+
+        // 7. Record audit trail
+        auditLogService.logEventUpdate(updatedBy, oldSnapshot, saved, ipAddress, userAgent);
+
+        return EventResponse.fromEntity(saved);
+    }
+
+    /**
      * Get all paginated events with filters.
      */
     @Override
@@ -82,10 +180,11 @@ public class EventServiceImpl implements EventService {
             Boolean past,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            String search,
             Pageable pageable) {
 
-        log.debug("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
-                status, upcoming, past, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
+        log.debug("Fetching all events - status={}, upcoming={}, past={}, startDate={}, endDate={}, search={}, page={}, size={}",
+                status, upcoming, past, startDate, endDate, search, pageable.getPageNumber(), pageable.getPageSize());
 
         List<Event> allEvents = eventRepository.findAll();
         LocalDateTime now = LocalDateTime.now();
@@ -123,6 +222,16 @@ public class EventServiceImpl implements EventService {
                 .filter(event -> {
                     if (startDate != null && endDate != null) {
                         return !event.getDate().isBefore(startDate) && !event.getDate().isAfter(endDate);
+                    }
+                    return true;
+                })
+                // search title or description
+                .filter(event -> {
+                    if (StringUtils.hasText(search)) {
+                        String term = search.toLowerCase();
+                        boolean matchesTitle = event.getTitle() != null && event.getTitle().toLowerCase().contains(term);
+                        boolean matchesDesc = event.getDescription() != null && event.getDescription().toLowerCase().contains(term);
+                        return matchesTitle || matchesDesc;
                     }
                     return true;
                 })
@@ -245,6 +354,79 @@ public class EventServiceImpl implements EventService {
             log.error("Invalid event status provided. value={}", status);
             throw new IllegalArgumentException("Invalid status. Allowed values: draft, published");
         }
+    }
+
+    /**
+     * Creates a shallow copy of an Event to snapshot its state before updates.
+     * Used by the audit log to record what changed.
+     */
+    private Event snapshotEvent(Event event) {
+        return Event.builder()
+                .id(event.getId())
+                .title(event.getTitle())
+                .speaker(event.getSpeaker())
+                .date(event.getDate())
+                .link(event.getLink())
+                .images(event.getImages() != null ? new java.util.ArrayList<>(event.getImages())
+                        : new java.util.ArrayList<>())
+                .description(event.getDescription())
+                .venue(event.getVenue())
+                .status(event.getStatus())
+                .createdBy(event.getCreatedBy())
+                .publishedAt(event.getPublishedAt())
+                .createdAt(event.getCreatedAt())
+                .updatedAt(event.getUpdatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void deleteEvent(UUID eventId, AdminUser deletedBy) {
+        log.debug("Deleting event. id={}, deletedBy={}", eventId, deletedBy.getEmail());
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        if (event.getStatus() != EventStatus.draft) {
+            log.warn("Cannot delete non-draft event. id={}, status={}", eventId, event.getStatus());
+            throw new IllegalArgumentException("Only draft events can be deleted.");
+        }
+
+        if (event.getImages() != null && !event.getImages().isEmpty()) {
+            log.info("Deleting {} image(s) from S3 for eventId={}", event.getImages().size(), eventId);
+            s3Service.deleteEventImages(event.getImages());
+        }
+
+        eventRepository.delete(event);
+        log.info("Event deleted successfully. id={}", eventId);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse changeEventStatus(UUID eventId, String statusRaw, AdminUser updatedBy, String ipAddress, String userAgent) {
+        log.debug("Changing event status. id={}, newStatus={}, updatedBy={}", eventId, statusRaw, updatedBy.getEmail());
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        Event oldSnapshot = snapshotEvent(event);
+        EventStatus requestedStatus = resolveStatus(statusRaw);
+        EventStatus currentStatus = event.getStatus();
+
+        if (currentStatus == EventStatus.published && requestedStatus == EventStatus.draft) {
+            throw new IllegalArgumentException("Cannot change event status from 'published' back to 'draft'");
+        }
+
+        if (requestedStatus == EventStatus.published && currentStatus != EventStatus.published) {
+            event.setPublishedAt(LocalDateTime.now());
+        }
+
+        event.setStatus(requestedStatus);
+        Event saved = eventRepository.save(event);
+        
+        auditLogService.logEventUpdate(updatedBy, oldSnapshot, saved, ipAddress, userAgent);
+        log.info("Event status changed successfully. id={}, status={}", eventId, saved.getStatus());
+
+        return EventResponse.fromEntity(saved);
     }
 }
 
