@@ -75,6 +75,14 @@ public interface EventService {
             LocalDateTime startDate,
             LocalDateTime endDate,
             Pageable pageable);
+
+    /**
+     * Send a push notification for a published event to all registered devices.
+     * - Can only notify published events.
+     * - Sets notification_sent = true and records notification_sent_at.
+     * - Returns the number of devices successfully notified.
+     */
+    int notifyEvent(UUID eventId);
 }
 
 

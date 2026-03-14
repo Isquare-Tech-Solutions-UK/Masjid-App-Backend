@@ -247,6 +247,32 @@ public class AdminEventController {
 
                 return ResponseEntity.ok(ApiResponse.success(updated));
         }
+        /**
+         * POST /admin/events/{id}/notify
+         * Send a push notification for a published event to all registered devices.
+         */
+        @Operation(summary = "Send Event Notification",
+                description = "Send a push notification for a published event to all registered mobile devices.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Notification sent successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Event is not published"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found")
+        })
+        @PostMapping("/{id}/notify")
+        public ResponseEntity<ApiResponse<Map<String, Object>>> notifyEvent(
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id) {
+
+                log.info("Received request to notify event. id={}", id);
+
+                int notifiedCount = eventService.notifyEvent(id);
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("devicesNotified", notifiedCount);
+                result.put("eventId", id);
+
+                return ResponseEntity.ok(ApiResponse.success(result));
+        }
+
         private Map<String, Object> buildPagination(Page<?> page) {
                 Map<String, Object> pagination = new HashMap<>();
                 pagination.put("page", page.getNumber());

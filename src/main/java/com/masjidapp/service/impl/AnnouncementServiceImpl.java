@@ -9,6 +9,7 @@ import com.masjidapp.entity.AnnouncementStatus;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.AnnouncementRepository;
 import com.masjidapp.service.AnnouncementService;
+import com.masjidapp.service.FcmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,6 +34,7 @@ import java.util.stream.Collectors;
 public class AnnouncementServiceImpl implements AnnouncementService {
 
     private final AnnouncementRepository announcementRepository;
+    private final FcmService fcmService;
 
     @Override
     @Transactional
@@ -53,6 +56,11 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
         log.info("Announcement created successfully. id={}, title={}, status={}",
                 saved.getId(), saved.getTitle(), saved.getStatus());
+
+        // Auto-send push notification if created with status = sent
+        if (saved.getStatus() == AnnouncementStatus.sent) {
+            sendAnnouncementNotification(saved);
+        }
 
         return AnnouncementResponse.fromEntity(saved);
     }
@@ -249,10 +257,37 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
         announcement.setStatus(requestedStatus);
         Announcement saved = announcementRepository.save(announcement);
-        
+
         log.info("Announcement status changed successfully. id={}, status={}", announcementId, saved.getStatus());
 
+        // Auto-send push notification when status transitions to sent
+        if (requestedStatus == AnnouncementStatus.sent && currentStatus != AnnouncementStatus.sent) {
+            sendAnnouncementNotification(saved);
+        }
+
         return AnnouncementResponse.fromEntity(saved);
+    }
+
+    /**
+     * Send FCM push notification for an announcement and mark it as sent.
+     */
+    private void sendAnnouncementNotification(Announcement announcement) {
+        try {
+            Map<String, String> data = Map.of(
+                    "type", "announcement",
+                    "id", announcement.getId().toString()
+            );
+
+            int notifiedCount = fcmService.sendToAll(announcement.getTitle(), announcement.getMessage(), data);
+
+            announcement.setNotificationSent(true);
+            announcement.setNotificationSentAt(LocalDateTime.now());
+            announcementRepository.save(announcement);
+
+            log.info("Announcement notification sent. id={}, devicesNotified={}", announcement.getId(), notifiedCount);
+        } catch (Exception e) {
+            log.error("Failed to send announcement notification. id={}, error={}", announcement.getId(), e.getMessage(), e);
+        }
     }
 
     private LocalDateTime parseDate(String date) {

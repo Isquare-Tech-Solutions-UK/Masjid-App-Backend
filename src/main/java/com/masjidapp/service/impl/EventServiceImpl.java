@@ -10,6 +10,7 @@ import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.EventRepository;
 import com.masjidapp.service.AuditLogService;
 import com.masjidapp.service.EventService;
+import com.masjidapp.service.FcmService;
 import com.masjidapp.service.S3Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,7 @@ public class EventServiceImpl implements EventService {
     private final EventRepository eventRepository;
     private final S3Service s3Service;
     private final AuditLogService auditLogService;
+    private final FcmService fcmService;
 
     @Override
     @Transactional
@@ -332,6 +336,36 @@ public class EventServiceImpl implements EventService {
 
         log.info("Event retrieved successfully. id={}, title={}", event.getId(), event.getTitle());
         return EventResponse.fromEntity(event);
+    }
+
+    @Override
+    @Transactional
+    public int notifyEvent(UUID eventId) {
+        log.debug("Sending push notification for event. id={}", eventId);
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        if (event.getStatus() != EventStatus.published) {
+            throw new IllegalArgumentException("Only published events can be notified. Current status: " + event.getStatus());
+        }
+
+        String body = String.format("Join us on %s at %s",
+                event.getDate().toLocalDate(),
+                event.getVenue());
+
+        Map<String, String> data = new HashMap<>();
+        data.put("type", "event");
+        data.put("id", event.getId().toString());
+
+        int notifiedCount = fcmService.sendToAll(event.getTitle(), body, data);
+
+        event.setNotificationSent(true);
+        event.setNotificationSentAt(LocalDateTime.now());
+        eventRepository.save(event);
+
+        log.info("Event notification sent. id={}, devicesNotified={}", eventId, notifiedCount);
+        return notifiedCount;
     }
 
     private LocalDateTime parseDate(String date) {
