@@ -1,3 +1,4 @@
+
 services:
   app:
     image: ${DOCKER_USERNAME}/masjid-backend:dev-latest
@@ -10,6 +11,10 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-postgres}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SERVER_PORT=8080
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - MEMBER_API_KEY=${MEMBER_API_KEY}
     ports:
       - "8080:8080"
     depends_on:
