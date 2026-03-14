@@ -1,8 +1,8 @@
 package com.masjidapp.controller.member;
 
 import com.masjidapp.dto.response.ApiResponse;
-import com.masjidapp.settings.dto.MemberMasjidInfoResponse;
-import com.masjidapp.settings.service.SettingsService;
+import com.masjidapp.dto.response.MemberMasjidInfoResponse;
+import com.masjidapp.service.SettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

@@ -1,4 +1,4 @@
-package com.masjidapp.settings.entity;
+package com.masjidapp.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

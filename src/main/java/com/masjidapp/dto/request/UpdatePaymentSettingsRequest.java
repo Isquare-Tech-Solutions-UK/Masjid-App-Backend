@@ -1,4 +1,4 @@
-package com.masjidapp.settings.dto;
+package com.masjidapp.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

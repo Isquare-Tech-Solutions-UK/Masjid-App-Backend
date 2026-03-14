@@ -1,6 +1,6 @@
-package com.masjidapp.settings.dto;
+package com.masjidapp.dto.request;
 
-import com.masjidapp.settings.entity.MasjidSettings;
+import com.masjidapp.entity.MasjidSettings;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;

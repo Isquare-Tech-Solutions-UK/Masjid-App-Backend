@@ -1,9 +1,9 @@
-package com.masjidapp.settings.service;
+package com.masjidapp.service;
 
-import com.masjidapp.settings.dto.MasjidSettingsResponse;
-import com.masjidapp.settings.dto.MemberMasjidInfoResponse;
-import com.masjidapp.settings.dto.UpdateMasjidSettingsRequest;
-import com.masjidapp.settings.dto.UpdatePaymentSettingsRequest;
+import com.masjidapp.dto.request.UpdateMasjidSettingsRequest;
+import com.masjidapp.dto.request.UpdatePaymentSettingsRequest;
+import com.masjidapp.dto.response.MasjidSettingsResponse;
+import com.masjidapp.dto.response.MemberMasjidInfoResponse;
 
 public interface SettingsService {
 

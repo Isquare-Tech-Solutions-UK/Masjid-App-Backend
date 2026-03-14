@@ -1,12 +1,13 @@
-package com.masjidapp.settings.service;
+package com.masjidapp.service.impl;
 
+import com.masjidapp.dto.request.UpdateMasjidSettingsRequest;
+import com.masjidapp.dto.request.UpdatePaymentSettingsRequest;
+import com.masjidapp.dto.response.MasjidSettingsResponse;
+import com.masjidapp.dto.response.MemberMasjidInfoResponse;
+import com.masjidapp.entity.MasjidSettings;
 import com.masjidapp.exception.ResourceNotFoundException;
-import com.masjidapp.settings.dto.MasjidSettingsResponse;
-import com.masjidapp.settings.dto.MemberMasjidInfoResponse;
-import com.masjidapp.settings.dto.UpdateMasjidSettingsRequest;
-import com.masjidapp.settings.dto.UpdatePaymentSettingsRequest;
-import com.masjidapp.settings.entity.MasjidSettings;
-import com.masjidapp.settings.repository.SettingsRepository;
+import com.masjidapp.repository.SettingsRepository;
+import com.masjidapp.service.SettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,24 +42,12 @@ public class SettingsServiceImpl implements SettingsService {
         settings.setName(request.getName());
         settings.setAbout(request.getAbout());
 
-        if (request.getAddress() != null) {
-            settings.setAddress(request.getAddress());
-        }
-        if (request.getContact() != null) {
-            settings.setContact(request.getContact());
-        }
-        if (request.getLocation() != null) {
-            settings.setLocation(request.getLocation());
-        }
-        if (request.getCapacity() != null) {
-            settings.setCapacity(request.getCapacity());
-        }
-        if (request.getServices() != null) {
-            settings.setServices(request.getServices());
-        }
-        if (request.getFacilities() != null) {
-            settings.setFacilities(request.getFacilities());
-        }
+        if (request.getAddress() != null) settings.setAddress(request.getAddress());
+        if (request.getContact() != null) settings.setContact(request.getContact());
+        if (request.getLocation() != null) settings.setLocation(request.getLocation());
+        if (request.getCapacity() != null) settings.setCapacity(request.getCapacity());
+        if (request.getServices() != null) settings.setServices(request.getServices());
+        if (request.getFacilities() != null) settings.setFacilities(request.getFacilities());
 
         MasjidSettings saved = settingsRepository.save(settings);
         log.info("Updated masjid settings: id={}", saved.getId());

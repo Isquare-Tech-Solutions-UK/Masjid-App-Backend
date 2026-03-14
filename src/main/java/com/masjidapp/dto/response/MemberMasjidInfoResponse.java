@@ -1,7 +1,6 @@
-package com.masjidapp.settings.dto;
+package com.masjidapp.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.masjidapp.settings.entity.MasjidSettings;
+import com.masjidapp.entity.MasjidSettings;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
