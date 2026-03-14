@@ -2,6 +2,7 @@ package com.masjidapp.settings.service;
 
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.settings.dto.MasjidSettingsResponse;
+import com.masjidapp.settings.dto.MemberMasjidInfoResponse;
 import com.masjidapp.settings.dto.UpdateMasjidSettingsRequest;
 import com.masjidapp.settings.dto.UpdatePaymentSettingsRequest;
 import com.masjidapp.settings.entity.MasjidSettings;
@@ -84,5 +85,13 @@ public class SettingsServiceImpl implements SettingsService {
         MasjidSettings saved = settingsRepository.save(settings);
         log.info("Updated payment settings: id={}", saved.getId());
         return MasjidSettingsResponse.fromEntity(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MemberMasjidInfoResponse getMasjidInfo() {
+        MasjidSettings settings = getSettingsEntity();
+        log.info("Retrieved masjid info for member API: id={}", settings.getId());
+        return MemberMasjidInfoResponse.fromEntity(settings);
     }
 }
