@@ -269,7 +269,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     }
 
     /**
-     * Send FCM push notification for an announcement and mark it as sent.
+     * Send FCM push notification for an announcement via topic and mark it as sent.
      */
     private void sendAnnouncementNotification(Announcement announcement) {
         try {
@@ -278,13 +278,13 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                     "id", announcement.getId().toString()
             );
 
-            int notifiedCount = fcmService.sendToAll(announcement.getTitle(), announcement.getMessage(), data);
+            fcmService.sendToTopic("announcements", announcement.getTitle(), announcement.getMessage(), data);
 
             announcement.setNotificationSent(true);
             announcement.setNotificationSentAt(LocalDateTime.now());
             announcementRepository.save(announcement);
 
-            log.info("Announcement notification sent. id={}, devicesNotified={}", announcement.getId(), notifiedCount);
+            log.info("Announcement notification sent via topic. id={}", announcement.getId());
         } catch (Exception e) {
             log.error("Failed to send announcement notification. id={}, error={}", announcement.getId(), e.getMessage(), e);
         }

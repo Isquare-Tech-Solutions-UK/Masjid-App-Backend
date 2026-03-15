@@ -358,14 +358,14 @@ public class EventServiceImpl implements EventService {
         data.put("type", "event");
         data.put("id", event.getId().toString());
 
-        int notifiedCount = fcmService.sendToAll(event.getTitle(), body, data);
+        fcmService.sendToTopic("events", event.getTitle(), body, data);
 
         event.setNotificationSent(true);
         event.setNotificationSentAt(LocalDateTime.now());
         eventRepository.save(event);
 
-        log.info("Event notification sent. id={}, devicesNotified={}", eventId, notifiedCount);
-        return notifiedCount;
+        log.info("Event notification sent via topic. id={}", eventId);
+        return 1;
     }
 
     private LocalDateTime parseDate(String date) {
