@@ -49,6 +49,9 @@ public class MasjidSettingsResponse {
     @JsonProperty("payment")
     private PaymentResponse payment;
 
+    @JsonProperty("stripe")
+    private StripeResponse stripe;
+
     @JsonProperty("createdAt")
     private LocalDateTime createdAt;
 
@@ -66,6 +69,18 @@ public class MasjidSettingsResponse {
         private String bankSortCode;
     }
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StripeResponse {
+        private String accountId;
+        private boolean connected;
+        private boolean onboardingComplete;
+        private boolean acceptingDonations;
+        private boolean payoutsEnabled;
+    }
+
     public static MasjidSettingsResponse fromEntity(MasjidSettings settings) {
         PaymentResponse paymentResponse = null;
         if (settings.getPayment() != null) {
@@ -76,6 +91,14 @@ public class MasjidSettingsResponse {
                     .bankSortCode(settings.getPayment().getBankSortCode())
                     .build();
         }
+
+        StripeResponse stripeResponse = StripeResponse.builder()
+                .accountId(settings.getStripeAccountId())
+                .connected(settings.getStripeAccountId() != null)
+                .onboardingComplete(settings.isStripeOnboardingComplete())
+                .acceptingDonations(settings.isStripeAcceptingDonations())
+                .payoutsEnabled(settings.isStripePayoutsEnabled())
+                .build();
 
         return MasjidSettingsResponse.builder()
                 .id(settings.getId())
@@ -89,6 +112,7 @@ public class MasjidSettingsResponse {
                 .services(settings.getServices())
                 .facilities(settings.getFacilities())
                 .payment(paymentResponse)
+                .stripe(stripeResponse)
                 .createdAt(settings.getCreatedAt())
                 .updatedAt(settings.getUpdatedAt())
                 .build();

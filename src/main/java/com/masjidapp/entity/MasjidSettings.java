@@ -68,6 +68,21 @@ public class MasjidSettings {
     @Builder.Default
     private Payment payment = new Payment();
 
+    @Column(name = "stripe_account_id")
+    private String stripeAccountId;
+
+    @Builder.Default
+    @Column(name = "stripe_onboarding_complete", nullable = false)
+    private boolean stripeOnboardingComplete = false;
+
+    @Builder.Default
+    @Column(name = "stripe_accepting_donations", nullable = false)
+    private boolean stripeAcceptingDonations = false;
+
+    @Builder.Default
+    @Column(name = "stripe_payouts_enabled", nullable = false)
+    private boolean stripePayoutsEnabled = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
