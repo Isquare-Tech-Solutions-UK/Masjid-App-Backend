@@ -43,9 +43,4 @@ public class StripeWebhookServiceImpl {
         }
     }
 
-    public void handlePaymentFailed(StripeObject stripeObject) {
-        Session session = (Session) stripeObject;
-        log.error("Payment-Failed for pi {} for the donation {} session ended at {}", session.getPaymentIntent(),
-                session.getMetadata().get(DONATION_ID), Instant.ofEpochSecond(session.getExpiresAt()));
-    }
 }
