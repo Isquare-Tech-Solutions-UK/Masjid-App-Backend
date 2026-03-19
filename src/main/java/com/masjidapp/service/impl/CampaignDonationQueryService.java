@@ -4,6 +4,7 @@ import com.masjidapp.dto.campaign.CampaignDto;
 import com.masjidapp.dto.donation.DonationDto;
 import com.masjidapp.entity.CampaignStatus;
 import com.masjidapp.entity.Donation;
+import com.masjidapp.entity.DonationStatus;
 import com.masjidapp.repository.CampaignRepository;
 import com.masjidapp.repository.DonationRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,12 +24,17 @@ public class CampaignDonationQueryService {
 
     public Page<CampaignDto> getActivePausedCampaigns(Pageable pageable) {
         return campaignRepository.findByStatusInOrderByStartDateDescEndDateAsc(pageable,
-                List.of(CampaignStatus.active, CampaignStatus.active)).map(CampaignDto::toDto);
+                List.of(CampaignStatus.active, CampaignStatus.paused)).map(CampaignDto::toDto);
     }
 
     public Page<DonationDto> getCampaignDonationSummary(UUID uuid, Pageable pageable) {
         Page<Donation> donations = donationRepository.findByCampaignId(uuid, pageable);
         return donations.map(DonationDto::toDto);
+    }
+
+    public Page<DonationDto> getCampaignActiveDonations(UUID id, Pageable pageable) {
+        return donationRepository.findByCampaignIdAndStatus(id, DonationStatus.completed, pageable)
+                .map(DonationDto::toDto);
     }
 
 }

@@ -4,6 +4,7 @@ import com.masjidapp.dto.donation.DonationCreateRequest;
 import com.masjidapp.dto.donation.DonationDto;
 import com.masjidapp.entity.Campaign;
 import com.masjidapp.entity.Donation;
+import com.masjidapp.entity.DonationStatus;
 import com.masjidapp.exception.MARequestException;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.CampaignRepository;
@@ -15,8 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -38,15 +41,24 @@ public class DonationServiceImpl implements DonationService {
                     .donorEmail(donationCreateRequest.getDonorEmail())
                     .campaign(campaign)
                     .amount(donationCreateRequest.getAmount())
+                    .processingFee(BigDecimal.ZERO)
+                    .totalCharged(donationCreateRequest.getAmount())
                     .anonymous(donationCreateRequest.getIsAnonymous())
                     .coverFee(donationCreateRequest.isCoverFee())
                     .createdAt(Instant.now())
                     .build();
             Donation saved = donationRepository.save(donation);
-            String checkoutSessionId = stripeService.createCheckoutSession(saved.getId(), campaignId, campaign.getTitle(),
+            Map<String,String> sessionMap = stripeService.createCheckoutSession(saved.getId(), campaignId, campaign.getTitle(),
                     donationCreateRequest);
-            saved.setStripeCheckoutSessionId(checkoutSessionId);
-            return Map.of("sessionId", checkoutSessionId);
+            saved.setStripeCheckoutSessionId(sessionMap.get("sessionId"));
+            saved.setStripePaymentIntentId(sessionMap.get("paymentIntentId"));
+            saved.setCurrency(sessionMap.get("currency"));
+
+            if (sessionMap.containsKey("processingFee")) {
+                saved.setProcessingFee(new BigDecimal(sessionMap.get("processingFee")));
+                saved.setTotalCharged(saved.getAmount().add(saved.getProcessingFee()));
+            }
+            return sessionMap;
         } catch (StripeException | RuntimeException e ) {
             throw new MARequestException("Error in create donation", e);
         }
@@ -56,6 +68,36 @@ public class DonationServiceImpl implements DonationService {
     public DonationDto getDonationStatus(UUID donationId) {
         return donationRepository.findById(donationId).map(DonationDto::toDto)
                 .orElseThrow(() -> new ResourceNotFoundException("Donation not found with id: " + donationId));
+    }
+
+    @Transactional
+    @Override
+    public void updateCampaignDonationStatus(String donationId, String campaignId, BigDecimal amount) {
+        log.info("Updating donation: {}", donationId);
+
+        int updated = donationRepository.markCompletedIfNotAlready(UUID.fromString(donationId));
+        if (updated == 0) {
+            log.info("Donation already processed: {}", donationId);
+            return;
+        }
+        campaignRepository.incrementCampaign(
+                UUID.fromString(donationId),
+                amount
+        );
+    }
+
+    @Override
+    @Transactional
+    public void updateDonationStatus(String donationId) {
+        Donation donation = Optional.of(donationId)
+                .map(UUID::fromString)
+                .flatMap(donationRepository::findById)
+                .orElse(null);
+        if (donation != null) {
+            donation.setStatus(DonationStatus.failed);
+            donation.setCompletedAt(Instant.now());
+            donation.setUpdatedAt(Instant.now());
+        }
     }
 
 }

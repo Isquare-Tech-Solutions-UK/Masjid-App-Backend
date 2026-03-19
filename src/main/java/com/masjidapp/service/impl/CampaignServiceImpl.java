@@ -3,6 +3,7 @@ package com.masjidapp.service.impl;
 import com.masjidapp.dto.campaign.CampaignDto;
 import com.masjidapp.dto.request.CampaignCreateRequest;
 import com.masjidapp.dto.request.CampaignUpdateRequest;
+import com.masjidapp.dto.request.CampaignUpdateStatusRequest;
 import com.masjidapp.entity.AdminUser;
 import com.masjidapp.entity.Campaign;
 import com.masjidapp.entity.CampaignStatus;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -61,6 +63,7 @@ public class CampaignServiceImpl implements CampaignService {
                     .description(request.getDescription())
                     .category(request.getCategory())
                     .goalAmount(request.getGoalAmount())
+                    .raisedAmount(BigDecimal.ZERO)
                     .startDate(request.getStartDate())
                     .endDate(request.getEndDate())
                     .createdAt(Instant.now());
@@ -119,6 +122,26 @@ public class CampaignServiceImpl implements CampaignService {
         campaign.setGoalAmount(request.getGoalAmount());
         campaign.setStatus(request.getStatus());
         campaign.setUpdatedAt(Instant.now());
+        return CampaignDto.toDto(campaign);
+    }
+
+    @Override
+    public CampaignDto updateCampaignStatus(UUID id, CampaignUpdateStatusRequest request) {
+
+        log.info("Updating campaign status with id: {}", id);
+        Campaign campaign = Optional.of(id).flatMap(campaignRepository::findById
+        ).orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + id));
+
+        if(campaign.getStatus() == CampaignStatus.cancelled || campaign.getStatus() == CampaignStatus.completed) {
+            throw new MARequestException("Cannot update a campaign that is cancelled or completed");
+        }
+
+        if ((campaign.getStatus() == CampaignStatus.active || campaign.getStatus() == CampaignStatus.paused)
+                && request.getStatus() == CampaignStatus.draft) {
+            throw new MARequestException("Cannot change status from active/paused to draft");
+        }
+
+        campaign.setStatus(request.getStatus());
         return CampaignDto.toDto(campaign);
     }
 

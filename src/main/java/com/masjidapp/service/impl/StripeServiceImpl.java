@@ -1,31 +1,44 @@
 package com.masjidapp.service.impl;
 
+import com.masjidapp.config.StripeConfig;
 import com.masjidapp.dto.donation.DonationCreateRequest;
+import com.masjidapp.util.CryptoUtil;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
 import jakarta.annotation.PostConstruct;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
+@Slf4j
+@AllArgsConstructor
 public class StripeServiceImpl {
+
+    private final StripeConfig stripeConfig;
 
     @PostConstruct
     public void init() {
-        Stripe.apiKey = "your_stripe_api_key";
+        Stripe.apiKey = CryptoUtil.decrypt(stripeConfig.getApiKey());
     }
 
-    public String createCheckoutSession(UUID donationId, String campaignId, String campaignTitle,
+    public Map<String,String> createCheckoutSession(UUID donationId, String campaignId, String campaignTitle,
                                         DonationCreateRequest donationCreateRequest) throws StripeException {
+        Map<String, String> checkoutSessionMap = new HashMap<>();
         BigDecimal donationAmount = donationCreateRequest.getAmount();
         boolean coverFee = donationCreateRequest.isCoverFee();
         BigDecimal processingFee =
                 donationAmount.multiply(new BigDecimal("0.029"))
-                        .add(new BigDecimal("0.30"));
+                        .add(new BigDecimal("0.30")).setScale(2, RoundingMode.HALF_UP);
 
         SessionCreateParams.PaymentIntentData.Builder piBuilder = SessionCreateParams.PaymentIntentData.builder();
         piBuilder
@@ -37,16 +50,18 @@ public class StripeServiceImpl {
 
         SessionCreateParams.Builder sessionBuilder = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setExpiresAt(Instant.now().plusSeconds(1800).getEpochSecond())
                 .setSuccessUrl(donationCreateRequest.getSuccessUrl())
                 .setCancelUrl(donationCreateRequest.getCancelUrl());
         if (coverFee) {
             piBuilder.putMetadata("processingFee", processingFee.toString());
+            checkoutSessionMap.put("processingFee", processingFee.toString());
             sessionBuilder.addLineItem(
                     SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
                             .setPriceData(
                                     SessionCreateParams.LineItem.PriceData.builder()
-                                            .setCurrency("GBP")
+                                            .setCurrency("gbp")
                                             .setUnitAmount(processingFee.multiply(new BigDecimal("100")).longValue())
                                             .setProductData(
                                                     SessionCreateParams.LineItem.PriceData.ProductData.builder()
@@ -61,12 +76,15 @@ public class StripeServiceImpl {
                         .setSuccessUrl(donationCreateRequest.getSuccessUrl())
                         .setCancelUrl(donationCreateRequest.getCancelUrl())
                         .setPaymentIntentData(piBuilder.build())
+                        .putMetadata("campaignId", campaignId)
+                        .putMetadata("donationId", donationId.toString())
+                        .putMetadata("donationAmount", donationAmount.toString())
                         .addLineItem(
                                 SessionCreateParams.LineItem.builder()
                                         .setQuantity(1L)
                                         .setPriceData(
                                                 SessionCreateParams.LineItem.PriceData.builder()
-                                                        .setCurrency("GBP")
+                                                        .setCurrency("gbp")
                                                         .setUnitAmount(donationAmount.multiply(new BigDecimal("100")).longValue())
                                                         .setProductData(
                                                                 SessionCreateParams.LineItem.PriceData.ProductData.builder()
@@ -76,7 +94,12 @@ public class StripeServiceImpl {
                                         .build())
                         .build();
         Session session = Session.create(params);
-        return session.getId();
+        checkoutSessionMap.put("sessionId", session.getId());
+        checkoutSessionMap.put("url", session.getUrl());
+        checkoutSessionMap.put("paymentIntentId", session.getPaymentIntent());
+        checkoutSessionMap.put("currency", session.getCurrency());
+
+        return checkoutSessionMap;
     }
 
 }
