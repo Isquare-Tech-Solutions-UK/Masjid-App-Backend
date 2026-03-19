@@ -1,8 +1,8 @@
 package com.masjidapp.controller.member;
 
 import com.masjidapp.dto.response.ApiResponse;
-import com.masjidapp.dto.response.EventResponse;
-import com.masjidapp.service.EventService;
+import com.masjidapp.dto.response.AnnouncementResponse;
+import com.masjidapp.service.AnnouncementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,38 +30,36 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Member Events API — read-only endpoints for the mobile app.
+ * Member Announcements API — read-only endpoints for the mobile app.
  * Protected by MemberApiKeyFilter (X-API-KEY header).
  */
 @RestController
-@RequestMapping("/member/events")
+@RequestMapping("/member/announcements")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Member Events", description = "Public endpoints for viewing masjid events")
+@Tag(name = "Member Announcements", description = "Public endpoints for viewing masjid announcements")
 @SecurityRequirement(name = "apiKeyAuth")
-public class MemberEventController {
+public class MemberAnnouncementController {
 
-    private final EventService eventService;
+    private final AnnouncementService announcementService;
 
     /**
-     * GET /member/events
-     * Returns all published events for members with optional filters and pagination.
+     * GET /member/announcements
+     * Returns all sent announcements for members with optional filters and pagination.
      */
     @Operation(
-            summary = "List Events",
-            description = "Returns all published events for members with optional filters and pagination.")
+            summary = "List Announcements",
+            description = "Returns all sent announcements for members with optional filters and pagination.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "Events retrieved successfully"),
+                    responseCode = "200", description = "Announcements retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401", description = "Invalid or missing API key",
                     content = @Content(schema = @Schema(
                             implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
     })
     @GetMapping
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberEvents(
-            @Parameter(description = "Filter by status (upcoming, past)")
-            @RequestParam(required = false) String status,
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberAnnouncements(
             @Parameter(description = "Start date range (ISO-8601)")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @Parameter(description = "End date range (ISO-8601)")
@@ -71,21 +69,12 @@ public class MemberEventController {
             @Parameter(description = "Page size", example = "20")
             @RequestParam(defaultValue = "20") int size) {
 
-        Boolean upcoming = null;
-        Boolean past = null;
+        log.info("Fetching member announcements - startDate={}, endDate={}, page={}, size={}",
+                startDate, endDate, page, size);
 
-        if ("upcoming".equalsIgnoreCase(status)) {
-            upcoming = true;
-        } else if ("past".equalsIgnoreCase(status)) {
-            past = true;
-        }
-
-        log.info("Fetching member events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
-                status, upcoming, past, startDate, endDate, page, size);
-
-        Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
-        Page<EventResponse> pageResult = eventService.getMemberEvents(
-                upcoming, past, startDate, endDate, pageable);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("scheduledAt").descending());
+        Page<AnnouncementResponse> pageResult = announcementService.getMemberAnnouncements(
+                startDate, endDate, pageable);
 
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());
@@ -95,31 +84,31 @@ public class MemberEventController {
     }
 
     /**
-     * GET /member/events/{id}
-     * Retrieves a single published event by its UUID.
+     * GET /member/announcements/{id}
+     * Retrieves a single sent announcement by its UUID.
      */
     @Operation(
-            summary = "Get Event by ID",
-            description = "Retrieve a single published event by its UUID.")
+            summary = "Get Announcement by ID",
+            description = "Retrieve a single sent announcement by its UUID.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "Event retrieved successfully"),
+                    responseCode = "200", description = "Announcement retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "401", description = "Invalid or missing API key",
                     content = @Content(schema = @Schema(
                             implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "404", description = "Event not found",
+                    responseCode = "404", description = "Announcement not found",
                     content = @Content(schema = @Schema(
                             implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
     })
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<EventResponse>> getMemberEventById(
-            @Parameter(description = "UUID of the event", required = true)
+    public ResponseEntity<ApiResponse<AnnouncementResponse>> getMemberAnnouncementById(
+            @Parameter(description = "UUID of the announcement", required = true)
             @PathVariable UUID id) {
-        log.info("Fetching member event by ID: {}", id);
-        EventResponse eventResponse = eventService.getEventById(id);
-        return ResponseEntity.ok(ApiResponse.success(eventResponse));
+        log.info("Fetching member announcement by ID: {}", id);
+        AnnouncementResponse response = announcementService.getAnnouncementById(id);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     private Map<String, Object> buildPagination(Page<?> page) {
@@ -134,4 +123,3 @@ public class MemberEventController {
     }
 
 }
-

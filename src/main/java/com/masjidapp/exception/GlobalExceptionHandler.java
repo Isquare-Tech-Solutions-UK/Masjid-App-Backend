@@ -14,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -154,6 +155,24 @@ public class GlobalExceptionHandler {
                                 .error(ErrorDetails.builder()
                                                 .code("BAD_REQUEST")
                                                 .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.badRequest().body(response);
+        }
+
+        /**
+         * Handle missing request parameters
+         */
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ErrorResponse> handleMissingParams(MissingServletRequestParameterException ex) {
+                log.warn("Missing parameter: {}", ex.getParameterName());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("BAD_REQUEST")
+                                                .message("Required request parameter '" + ex.getParameterName() + "' is missing")
                                                 .build())
                                 .meta(Meta.now())
                                 .build();

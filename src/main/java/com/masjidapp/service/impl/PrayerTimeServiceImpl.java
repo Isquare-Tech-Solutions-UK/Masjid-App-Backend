@@ -1,9 +1,12 @@
 package com.masjidapp.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.masjidapp.dto.request.BulkPrayerTimeRequest;
 import com.masjidapp.dto.request.CreatePrayerTimeRequest;
 import com.masjidapp.dto.request.UpdatePrayerTimeRequest;
 import com.masjidapp.dto.response.BulkPrayerTimeResult;
+import com.masjidapp.dto.response.MemberPrayerTimeResponse;
+import com.masjidapp.dto.response.NextPrayerInfo;
 import com.masjidapp.dto.response.PrayerTimeResponse;
 import com.masjidapp.entity.PrayerTime;
 import com.masjidapp.exception.ResourceNotFoundException;
@@ -16,10 +19,17 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +37,18 @@ import java.util.UUID;
 public class PrayerTimeServiceImpl implements PrayerTimeService {
 
     private final PrayerTimeRepository prayerTimeRepository;
+
+    /**
+     * Ordered list of prayer names to iterate when computing nextPrayer.
+     * "sunrise" is excluded because it has no jamah time.
+     */
+    private static final String[] PRAYER_ORDER = {"fajr", "sunrise", "zuhr", "asr", "maghrib", "isha"};
+
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
+    // ============================================
+    // Admin methods
+    // ============================================
 
     @Override
     @Transactional(readOnly = true)
@@ -165,6 +187,68 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
         log.info("Deleted prayer time with ID: {}", id);
     }
 
+    // ============================================
+    // Member methods
+    // ============================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public MemberPrayerTimeResponse getTodayPrayerTimes() {
+        LocalDate today = LocalDate.now();
+        log.debug("Fetching today's prayer times for date: {}", today);
+
+        PrayerTime prayerTime = prayerTimeRepository.findByDate(today)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Prayer times not found for today: " + today));
+
+        MemberPrayerTimeResponse response = MemberPrayerTimeResponse.fromEntity(prayerTime);
+        response.setNextPrayer(computeNextPrayer(prayerTime.getPrayers()));
+
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberPrayerTimeResponse> getWeekPrayerTimes() {
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
+        log.debug("Fetching weekly prayer times: {} to {}", weekStart, weekEnd);
+
+        List<PrayerTime> prayerTimes = prayerTimeRepository
+                .findByDateBetweenOrderByDateAsc(weekStart, weekEnd);
+
+        return prayerTimes.stream()
+                .map(MemberPrayerTimeResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberPrayerTimeResponse> getMonthPrayerTimes(Integer month, Integer year) {
+        LocalDate today = LocalDate.now();
+        int targetMonth = (month != null) ? month : today.getMonthValue();
+        int targetYear = (year != null) ? year : today.getYear();
+
+        YearMonth yearMonth = YearMonth.of(targetYear, targetMonth);
+        LocalDate monthStart = yearMonth.atDay(1);
+        LocalDate monthEnd = yearMonth.atEndOfMonth();
+
+        log.debug("Fetching monthly prayer times: {} to {}", monthStart, monthEnd);
+
+        List<PrayerTime> prayerTimes = prayerTimeRepository
+                .findByDateBetweenOrderByDateAsc(monthStart, monthEnd);
+
+        return prayerTimes.stream()
+                .map(MemberPrayerTimeResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ============================================
+    // Private helpers
+    // ============================================
+
     /**
      * Parse date string to LocalDate
      */
@@ -176,4 +260,71 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
         }
     }
 
+    /**
+     * Compute the next upcoming prayer based on current time.
+     * Returns null if all prayers for today have passed.
+     */
+    private NextPrayerInfo computeNextPrayer(JsonNode prayers) {
+        if (prayers == null) {
+            return null;
+        }
+
+        LocalTime now = LocalTime.now();
+
+        for (String prayerName : PRAYER_ORDER) {
+            JsonNode prayerNode = prayers.get(prayerName);
+            if (prayerNode == null) {
+                continue;
+            }
+
+            JsonNode athanNode = prayerNode.get("athan");
+            if (athanNode == null || athanNode.isNull()) {
+                continue;
+            }
+
+            try {
+                LocalTime athanTime = LocalTime.parse(athanNode.asText(), TIME_FORMAT);
+
+                if (athanTime.isAfter(now)) {
+                    // This is the next prayer
+                    String jamah = null;
+                    JsonNode jamahNode = prayerNode.get("jamah");
+                    if (jamahNode != null && !jamahNode.isNull()) {
+                        jamah = jamahNode.asText();
+                    }
+
+                    return NextPrayerInfo.builder()
+                            .name(prayerName)
+                            .athan(athanNode.asText())
+                            .jamah(jamah)
+                            .timeUntil(formatTimeUntil(now, athanTime))
+                            .build();
+                }
+            } catch (DateTimeParseException e) {
+                log.warn("Failed to parse athan time for prayer '{}': {}", prayerName, athanNode.asText());
+            }
+        }
+
+        // All prayers have passed for today
+        return null;
+    }
+
+    /**
+     * Format the duration between now and a target time as "Xh Ym".
+     */
+    private String formatTimeUntil(LocalTime now, LocalTime target) {
+        long totalMinutes = java.time.Duration.between(now, target).toMinutes();
+        long hours = totalMinutes / 60;
+        long minutes = totalMinutes % 60;
+
+        if (hours > 0 && minutes > 0) {
+            return hours + "h " + minutes + "m";
+        } else if (hours > 0) {
+            return hours + "h";
+        } else {
+            return minutes + "m";
+        }
+    }
+
 }
+
