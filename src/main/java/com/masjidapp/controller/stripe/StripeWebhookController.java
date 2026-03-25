@@ -3,7 +3,6 @@ package com.masjidapp.controller.stripe;
 import com.masjidapp.config.StripeConfig;
 import com.masjidapp.exception.MARequestException;
 import com.masjidapp.service.impl.StripeWebhookServiceImpl;
-import com.masjidapp.util.CryptoUtil;
 import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
@@ -41,7 +40,7 @@ public class StripeWebhookController {
         try {
             log.info("Received Stripe webhook event body {}", StripeUtils.toSingleLineJson(request));
             log.info("Webhook received at {}", Instant.now());
-            final String signingSecret = CryptoUtil.decrypt(stripeConfig.getSigningSecret());
+            final String signingSecret = stripeConfig.getSigningSecret();
             event = Webhook.constructEvent(
                     request, stripeSignature, signingSecret
             );

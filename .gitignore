@@ -24,6 +24,10 @@ logs/
 .env.local
 *.env
 
+# Encryption keys — never commit these
+src/main/resources/secret.key
+src/main/resources/raw.key
+
 # Maven
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

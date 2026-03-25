@@ -57,6 +57,7 @@ public class DonationServiceImpl implements DonationService {
                     .coverFee(donationCreateRequest.isCoverFee())
                     .createdAt(Instant.now())
                     .build();
+
             Donation saved = donationRepository.save(donation);
             Map<String, String> sessionMap = stripeService.createCheckoutSession(
                     saved.getId(), campaignId, campaign.getTitle(), stripeAccountId, donationCreateRequest);

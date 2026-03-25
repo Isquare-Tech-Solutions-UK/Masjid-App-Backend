@@ -75,6 +75,15 @@ app:
   firebase:
     service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
 
+  stripe:
+    client-id: ${STRIPE_CLIENT_ID}
+    secret-key: ${STRIPE_SECRET_KEY}
+    signing-secret: ${STRIPE_WEBHOOK_SECRET}
+    oauth-redirect-uri: ${STRIPE_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/admin/settings/stripe/callback}
+    fee-percent: ${STRIPE_FEE_PERCENT:0.015}
+    fee-fixed: ${STRIPE_FEE_FIXED:0.20}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
 member:
   api:
     key: ${MEMBER_API_KEY:d4f8a1b2-7e3c-4f9a-b5d6-1a2b3c4d5e6f}

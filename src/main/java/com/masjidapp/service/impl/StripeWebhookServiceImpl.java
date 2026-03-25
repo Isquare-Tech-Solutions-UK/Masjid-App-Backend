@@ -29,7 +29,8 @@ public class StripeWebhookServiceImpl {
             donationService.updateCampaignDonationStatus(session.getMetadata().get(DONATION_ID),
                     session.getMetadata().get("campaignId"), new BigDecimal(session.getMetadata().get("donationAmount")));
         } else {
-            throw new MARequestException("payment not yet received");
+            log.warn("checkout.session.completed received but payment not confirmed — status={}, paymentStatus={}",
+                    session.getStatus(), session.getPaymentStatus());
         }
     }
 
