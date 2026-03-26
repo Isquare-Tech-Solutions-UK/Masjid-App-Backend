@@ -20,7 +20,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcType;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.PostgreSQLEnumJdbcType;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "campaigns")
@@ -65,6 +67,8 @@ public class Campaign {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
     private String media;
 
     @ManyToOne

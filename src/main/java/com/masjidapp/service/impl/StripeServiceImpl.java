@@ -36,10 +36,16 @@ public class StripeServiceImpl {
         BigDecimal donationAmount = donationCreateRequest.getAmount();
         boolean coverFee = donationCreateRequest.isCoverFee();
 
-        // Use configurable fee rates (default: UK 1.5% + £0.20)
+        // Gross-up formula: ensures masjid receives exactly the donation amount.
+        // total = (donationAmount + fixedFee) / (1 - percentFee)
+        // fee   = total - donationAmount
+        // Example: £100 → total = (100 + 0.20) / 0.985 = £101.73, fee = £1.73
+        // Stripe takes £101.73 × 1.5% + £0.20 = £1.73 → masjid gets exactly £100.
+        BigDecimal one = BigDecimal.ONE;
         BigDecimal processingFee = donationAmount
-                .multiply(stripeConfig.getFeePercent())
                 .add(stripeConfig.getFeeFixed())
+                .divide(one.subtract(stripeConfig.getFeePercent()), 2, RoundingMode.HALF_UP)
+                .subtract(donationAmount)
                 .setScale(2, RoundingMode.HALF_UP);
 
         SessionCreateParams.PaymentIntentData.Builder piBuilder = SessionCreateParams.PaymentIntentData.builder()
