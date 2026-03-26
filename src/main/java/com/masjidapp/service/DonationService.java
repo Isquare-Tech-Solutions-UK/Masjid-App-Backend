@@ -13,5 +13,6 @@ public interface DonationService {
     DonationDto getDonationStatus(UUID donationId);
     void updateCampaignDonationStatus(String donationId, String campaignId, BigDecimal amount);
     void updateDonationStatus(String donationId);
+    void updateActualStripeFee(String donationId, BigDecimal actualFee, String paymentMethod);
 
 }

@@ -99,6 +99,18 @@ public class DonationServiceImpl implements DonationService {
 
     @Override
     @Transactional
+    public void updateActualStripeFee(String donationId, BigDecimal actualFee, String paymentMethod) {
+        donationRepository.findById(UUID.fromString(donationId)).ifPresent(donation -> {
+            donation.setProcessingFee(actualFee);
+            donation.setTotalCharged(donation.getAmount().add(actualFee));
+            if (paymentMethod != null) donation.setPaymentMethod(paymentMethod);
+            donation.setUpdatedAt(Instant.now());
+            log.info("Updated actual Stripe fee for donation {}: fee={}", donationId, actualFee);
+        });
+    }
+
+    @Override
+    @Transactional
     public void updateDonationStatus(String donationId) {
         Donation donation = Optional.of(donationId)
                 .map(UUID::fromString)
