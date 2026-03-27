@@ -5,7 +5,6 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,9 +26,6 @@ public class OpenApiConfig {
                         .contact(new Contact()
                                 .name("Masjid App Support")
                                 .email("support@masjidapp.com")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080/api/v1").description("Local"),
-                        new Server().url("https://api.masjidapp.com/api/v1").description("Production")))
                 .tags(List.of(
                         new Tag().name("Auth").description("Admin authentication — login, token refresh, logout"),
                         new Tag().name("Admin Settings").description("Masjid profile, payment and settings management"),
