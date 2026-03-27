@@ -68,6 +68,12 @@ public class MasjidSettings {
     @Builder.Default
     private Payment payment = new Payment();
 
+    @Column(name = "stripe_account_id")
+    private String stripeAccountId;
+
+    @Column(name = "stripe_connected_at")
+    private java.time.Instant stripeConnectedAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

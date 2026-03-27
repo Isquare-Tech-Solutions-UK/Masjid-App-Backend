@@ -137,6 +137,13 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>30.2.0</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>

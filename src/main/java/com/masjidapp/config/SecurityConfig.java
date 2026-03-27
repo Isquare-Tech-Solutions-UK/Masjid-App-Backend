@@ -50,11 +50,15 @@ public class SecurityConfig {
                                 "/admin/auth/refresh",
                                 "/admin/auth/logout",
                                 "/actuator/health",
+                                // Stripe OAuth callback — called by Stripe redirect, no JWT available
+                                "/admin/settings/stripe/callback",
                                 // Swagger UI & OpenAPI docs
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/v3/api-docs")
+                                "/v3/api-docs",
+                                "/api-docs/**",
+                                "/api-docs")
                         .permitAll()
 
                         // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)

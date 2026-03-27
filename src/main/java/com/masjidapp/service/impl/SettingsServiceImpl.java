@@ -8,6 +8,7 @@ import com.masjidapp.entity.MasjidSettings;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.SettingsRepository;
 import com.masjidapp.service.SettingsService;
+import com.masjidapp.service.StripeConnectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SettingsServiceImpl implements SettingsService {
 
     private final SettingsRepository settingsRepository;
+    private final StripeConnectService stripeConnectService;
 
     private MasjidSettings getSettingsEntity() {
         return settingsRepository.findAll().stream()
@@ -31,7 +33,9 @@ public class SettingsServiceImpl implements SettingsService {
     public MasjidSettingsResponse getSettings() {
         MasjidSettings settings = getSettingsEntity();
         log.info("Retrieved masjid settings: id={}", settings.getId());
-        return MasjidSettingsResponse.fromEntity(settings);
+        MasjidSettingsResponse response = MasjidSettingsResponse.fromEntity(settings);
+        response.setStripe(stripeConnectService.getStatus());
+        return response;
     }
 
     @Override
