@@ -71,7 +71,8 @@ public class DonationServiceImpl implements DonationService {
             }
             return sessionMap;
         } catch (StripeException | RuntimeException e) {
-            throw new MARequestException("Error in create donation", e);
+            log.error("Donation creation failed: {}", e.getMessage(), e);
+            throw new MARequestException("Error in create donation: " + e.getMessage(), e);
         }
     }
 

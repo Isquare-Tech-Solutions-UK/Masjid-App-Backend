@@ -8,9 +8,11 @@ import com.masjidapp.service.DonationService;
 import com.masjidapp.service.impl.CampaignDonationQueryService;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -30,6 +32,7 @@ import java.util.UUID;
 @RequestMapping("/member")
 @RequiredArgsConstructor
 @Tag(name = "Donations", description = "Member donation and campaign donation APIs")
+@SecurityRequirement(name = "apiKeyAuth")
 public class DonationController {
 
     private final DonationService donationService;
@@ -41,7 +44,7 @@ public class DonationController {
             description = "Returns a paginated list of active and paused campaigns available for member donations."
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> getActivePausedCampaigns(
-            @PageableDefault(page = 0, size = 5) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 5) Pageable pageable) {
         Page<CampaignDto> pageResult = campaignDonationQueryService.getActivePausedCampaigns(pageable);
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());
@@ -73,7 +76,7 @@ public class DonationController {
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCampaignDonations(
             @PathVariable("id") UUID campaignId,
-            @PageableDefault(page = 0, size = 5) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 5) Pageable pageable) {
         Page<DonationDto> pageResult = campaignDonationQueryService.getCampaignActiveDonations(campaignId, pageable);
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());

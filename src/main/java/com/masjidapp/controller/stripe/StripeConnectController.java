@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,6 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/settings/stripe")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Stripe Connect", description = "Connect the masjid's Stripe account via OAuth to accept donations")
 @SecurityRequirement(name = "bearerAuth")
 public class StripeConnectController {
@@ -48,7 +50,14 @@ public class StripeConnectController {
             summary = "Stripe OAuth callback",
             description = "Handles the OAuth redirect from Stripe. Exchanges the authorization code for the connected account ID."
     )
-    public RedirectView callback(@RequestParam String code) {
+    public RedirectView callback(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String error,
+            @RequestParam(name = "error_description", required = false) String errorDescription) {
+        if (error != null) {
+            log.warn("Stripe OAuth denied: {} — {}", error, errorDescription);
+            return new RedirectView(frontendUrl + "/settings?stripe=cancelled");
+        }
         stripeConnectService.handleOAuthCallback(code, oauthRedirectUri);
         return new RedirectView(frontendUrl + "/settings?stripe=connected");
     }

@@ -9,6 +9,8 @@ import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,8 @@ import java.util.Map;
 @RequestMapping("/webhooks/stripe")
 @AllArgsConstructor
 @Slf4j
+@Tag(name = "Stripe Webhooks", description = "Stripe event webhooks — internal use only")
+@Hidden
 public class StripeWebhookController {
 
     private final StripeWebhookServiceImpl stripeWebhookServiceImpl;

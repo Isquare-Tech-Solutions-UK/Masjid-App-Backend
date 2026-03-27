@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -47,7 +48,7 @@ public class CampaignController {
             description = "Returns a paginated list of all campaigns for administration."
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAllCampaigns(
-            @PageableDefault(page = 0, size = 5) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 5) Pageable pageable) {
         Page<CampaignDto> pageResult = campaignService.getAllCampaigns(pageable);
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());
@@ -104,7 +105,7 @@ public class CampaignController {
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCampaignDonationSummary(
             @PathVariable("id") UUID id,
-            @PageableDefault(page = 0, size = 10) Pageable pageable) {
+            @ParameterObject @PageableDefault(page = 0, size = 10) Pageable pageable) {
         Page<DonationDto> pageResult = campaignDonationQueryService.getCampaignDonationSummary(id, pageable);
         Map<String, Object> data = new HashMap<>();
         data.put("content", pageResult.getContent());
