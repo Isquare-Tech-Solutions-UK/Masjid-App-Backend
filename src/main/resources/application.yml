@@ -100,4 +100,5 @@ springdoc:
     try-it-out-enabled: true
   api-docs:
     path: /v3/api-docs
+  override-with-generic-response: false
 
