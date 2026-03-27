@@ -78,6 +78,11 @@ jobs:
             export JWT_SECRET=${{ secrets.JWT_SECRET }}
             export MEMBER_API_KEY=${{ secrets.MEMBER_API_KEY }}
             export FIREBASE_SERVICE_ACCOUNT_JSON=${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+            export STRIPE_CLIENT_ID=${{ secrets.STRIPE_CLIENT_ID }}
+            export STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            export STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            export STRIPE_OAUTH_REDIRECT_URI=${{ secrets.STRIPE_OAUTH_REDIRECT_URI }}
+            export FRONTEND_URL=${{ secrets.FRONTEND_URL }}
             # Pull latest images
             docker compose -f docker-compose.dev.yml pull
             # Recreate only changed services
