@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface DonationRepository extends JpaRepository<Donation, UUID> {
@@ -25,5 +26,20 @@ public interface DonationRepository extends JpaRepository<Donation, UUID> {
         WHERE d.id = :id AND d.status != 'completed'
     """)
     int markCompletedIfNotAlready(@Param("id") UUID id);
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM donations WHERE campaign_id = :campaignId AND status = 'completed'", nativeQuery = true)
+    BigDecimal sumCompletedAmountsByCampaignId(@Param("campaignId") UUID campaignId);
+
+    @Query(value = "SELECT COUNT(*) FROM donations WHERE campaign_id = :campaignId AND status = 'completed'", nativeQuery = true)
+    long countCompletedByCampaignId(@Param("campaignId") UUID campaignId);
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM donations WHERE status = 'completed'", nativeQuery = true)
+    BigDecimal sumAllCompleted();
+
+    @Query(value = "SELECT COUNT(*) FROM donations WHERE status = 'completed'", nativeQuery = true)
+    long countAllCompleted();
+
+    @Query(value = "SELECT COALESCE(SUM(amount), 0) FROM donations WHERE status = 'completed' AND DATE_TRUNC('month', completed_at) = DATE_TRUNC('month', NOW())", nativeQuery = true)
+    BigDecimal sumCompletedThisMonth();
 
 }

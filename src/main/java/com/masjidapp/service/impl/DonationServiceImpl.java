@@ -117,7 +117,7 @@ public class DonationServiceImpl implements DonationService {
                 .map(UUID::fromString)
                 .flatMap(donationRepository::findById)
                 .orElse(null);
-        if (donation != null) {
+        if (donation != null && donation.getStatus() != DonationStatus.completed) {
             donation.setStatus(DonationStatus.failed);
             donation.setCompletedAt(Instant.now());
             donation.setUpdatedAt(Instant.now());

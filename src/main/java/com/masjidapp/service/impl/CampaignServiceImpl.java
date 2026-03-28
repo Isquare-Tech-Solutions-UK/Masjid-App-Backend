@@ -11,6 +11,7 @@ import com.masjidapp.exception.MARequestException;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.AdminUserRepository;
 import com.masjidapp.repository.CampaignRepository;
+import com.masjidapp.repository.DonationRepository;
 import com.masjidapp.security.SecurityUtil;
 import com.masjidapp.service.CampaignService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.util.UUID;
 public class CampaignServiceImpl implements CampaignService {
 
     private final CampaignRepository campaignRepository;
+    private final DonationRepository donationRepository;
     private final SecurityUtil securityUtil;
     private final AdminUserRepository adminUserRepository;
 
@@ -40,7 +42,7 @@ public class CampaignServiceImpl implements CampaignService {
 
         log.info("Fetching all active campaigns");
         Page<Campaign> campaigns = campaignRepository.findByOrderByStartDateDescEndDateAsc(pageable);
-        return campaigns.map(CampaignDto::toDto);
+        return campaigns.map(this::toDtoWithComputedStats);
     }
 
     @Override
@@ -50,7 +52,16 @@ public class CampaignServiceImpl implements CampaignService {
         Campaign campaign = Optional.of(id).flatMap(campaignRepository::findById
         ).orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + id));
 
-        return CampaignDto.toDto(campaign);
+        return toDtoWithComputedStats(campaign);
+    }
+
+    private CampaignDto toDtoWithComputedStats(Campaign campaign) {
+        BigDecimal computedRaised = donationRepository.sumCompletedAmountsByCampaignId(campaign.getId());
+        long computedDonorCount = donationRepository.countCompletedByCampaignId(campaign.getId());
+        CampaignDto dto = CampaignDto.toDto(campaign);
+        dto.setRaisedAmount(computedRaised);
+        dto.setDonorCount((int) computedDonorCount);
+        return dto;
     }
 
     @Override
@@ -126,6 +137,7 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     @Override
+    @Transactional
     public CampaignDto updateCampaignStatus(UUID id, CampaignUpdateStatusRequest request) {
 
         log.info("Updating campaign status with id: {}", id);
@@ -141,8 +153,28 @@ public class CampaignServiceImpl implements CampaignService {
             throw new MARequestException("Cannot change status from active/paused to draft");
         }
 
+        if (campaign.getStatus() == CampaignStatus.draft && request.getStatus() == CampaignStatus.active) {
+            campaign.setPublishedAt(Instant.now());
+        } else if (request.getStatus() == CampaignStatus.completed || request.getStatus() == CampaignStatus.cancelled) {
+            campaign.setEndedAt(Instant.now());
+        }
+
         campaign.setStatus(request.getStatus());
+        campaignRepository.save(campaign);
         return CampaignDto.toDto(campaign);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDraftCampaign(UUID id) {
+        log.info("Deleting draft campaign with id: {}", id);
+        Campaign campaign = campaignRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + id));
+        if (campaign.getStatus() != CampaignStatus.draft) {
+            throw new MARequestException("Only draft campaigns can be deleted");
+        }
+        campaignRepository.delete(campaign);
+        log.info("Draft campaign deleted with id: {}", id);
     }
 
 }

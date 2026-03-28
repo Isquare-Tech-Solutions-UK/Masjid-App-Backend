@@ -10,6 +10,9 @@ import com.masjidapp.dto.request.CampaignCreateRequest;
 import com.masjidapp.dto.request.CampaignUpdateRequest;
 import com.masjidapp.dto.request.CampaignUpdateStatusRequest;
 import com.masjidapp.dto.response.ApiResponse;
+import com.masjidapp.entity.CampaignStatus;
+import com.masjidapp.repository.CampaignRepository;
+import com.masjidapp.repository.DonationRepository;
 import com.masjidapp.service.CampaignService;
 import com.masjidapp.service.impl.CampaignDonationQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +45,19 @@ public class CampaignController {
 
     private final CampaignService campaignService;
     private final CampaignDonationQueryService campaignDonationQueryService;
+    private final CampaignRepository campaignRepository;
+    private final DonationRepository donationRepository;
+
+    @GetMapping("stats")
+    @Operation(summary = "Get campaign dashboard stats")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getCampaignStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("activeCampaigns", campaignRepository.countByStatus(CampaignStatus.active));
+        stats.put("totalDonors", donationRepository.countAllCompleted());
+        stats.put("raisedThisMonth", donationRepository.sumCompletedThisMonth());
+        stats.put("totalRaised", donationRepository.sumAllCompleted());
+        return ResponseEntity.ok(ApiResponse.success(stats));
+    }
 
     @GetMapping
     @Operation(
@@ -96,6 +113,16 @@ public class CampaignController {
             @PathVariable("id") UUID id,
             @Valid @RequestBody CampaignUpdateStatusRequest campaignUpdateStatusRequest) {
         return ResponseEntity.ok(ApiResponse.success(campaignService.updateCampaignStatus(id, campaignUpdateStatusRequest)));
+    }
+
+    @DeleteMapping("{id}")
+    @Operation(
+            summary = "Delete a draft campaign",
+            description = "Permanently deletes a campaign that is in draft status."
+    )
+    public ResponseEntity<ApiResponse<Void>> deleteDraftCampaign(@PathVariable("id") UUID id) {
+        campaignService.deleteDraftCampaign(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @GetMapping("{id}/donations")
