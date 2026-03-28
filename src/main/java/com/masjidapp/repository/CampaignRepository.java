@@ -27,4 +27,6 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
     """)
     void incrementCampaign(UUID campaignId, BigDecimal amount);
 
+    long countByStatus(CampaignStatus status);
+
 }

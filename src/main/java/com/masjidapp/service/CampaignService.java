@@ -15,4 +15,5 @@ public interface CampaignService {
     CampaignDto createCampaign(CampaignCreateRequest request);
     CampaignDto updateCampaign(UUID id, CampaignUpdateRequest request);
     CampaignDto updateCampaignStatus(UUID id, CampaignUpdateStatusRequest request);
+    void deleteDraftCampaign(UUID id);
 }
