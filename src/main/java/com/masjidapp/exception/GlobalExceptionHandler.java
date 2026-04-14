@@ -145,6 +145,24 @@ public class GlobalExceptionHandler {
         }
 
         /**
+         * Handle invalid event state
+         */
+        @ExceptionHandler(InvalidEventStateException.class)
+        public ResponseEntity<ErrorResponse> handleInvalidEventState(InvalidEventStateException ex) {
+                log.warn("Invalid event state: {}", ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("INVALID_STATE")
+                                                .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
+        /**
          * Handle illegal argument / bad request errors
          */
         @ExceptionHandler(IllegalArgumentException.class)

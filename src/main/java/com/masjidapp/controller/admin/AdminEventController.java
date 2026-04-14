@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -200,20 +201,23 @@ public class AdminEventController {
 
         /**
          * DELETE /admin/events/{id}
-         * Delete a draft event.
+         * Delete a cancelled event (soft delete).
          */
-        @Operation(summary = "Delete Event", description = "Delete an event. Only events with 'draft' status can be deleted.")
+        @Operation(summary = "Delete Event", description = "Soft delete an event. Only events with 'cancelled' status can be deleted.")
         @ApiResponses(value = {
-                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Event deleted successfully"),
-                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Cannot delete non-draft event", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
-                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event deleted successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Conflict - Event status is not CANCELLED", content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
         })
         @DeleteMapping("/{id}")
-        public ResponseEntity<Void> deleteEvent(
+        @PreAuthorize("hasRole('admin') or hasRole('super_admin')")
+        public ResponseEntity<ApiResponse<UUID>> deleteEvent(
                         @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id) {
                 log.info("Received request to delete event: {}", id);
                 eventService.deleteEvent(id, authRequestContainer.getAdminUser());
-                return ResponseEntity.noContent().build();
+                return ResponseEntity.ok(ApiResponse.success(id));
         }
 
         public static class StatusUpdateRequest {

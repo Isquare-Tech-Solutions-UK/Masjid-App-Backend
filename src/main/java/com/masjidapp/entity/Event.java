@@ -27,8 +27,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.SQLRestriction;
+
 @Entity
 @Table(name = "events")
+@SQLRestriction("is_deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -93,6 +96,17 @@ public class Event {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "deleted_by")
+    private AdminUser deletedBy;
 
     @PrePersist
     protected void onCreate() {
