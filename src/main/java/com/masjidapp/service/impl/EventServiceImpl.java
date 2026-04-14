@@ -418,20 +418,21 @@ public class EventServiceImpl implements EventService {
     public void deleteEvent(UUID eventId, AdminUser deletedBy) {
         log.debug("Deleting event. id={}, deletedBy={}", eventId, deletedBy.getEmail());
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+                .orElseThrow(() -> new com.masjidapp.exception.EventNotFoundException("Event not found with id: " + eventId));
 
-        if (event.getStatus() != EventStatus.draft) {
-            log.warn("Cannot delete non-draft event. id={}, status={}", eventId, event.getStatus());
-            throw new IllegalArgumentException("Only draft events can be deleted.");
+        if (event.getStatus() != EventStatus.cancelled) {
+            log.warn("Cannot delete non-cancelled event. id={}, status={}", eventId, event.getStatus());
+            throw new com.masjidapp.exception.InvalidEventStateException(
+                    "Only events with status CANCELLED can be deleted. Current status: " + event.getStatus());
         }
 
-        if (event.getImages() != null && !event.getImages().isEmpty()) {
-            log.info("Deleting {} image(s) from S3 for eventId={}", event.getImages().size(), eventId);
-            s3Service.deleteEventImages(event.getImages());
-        }
-
-        eventRepository.delete(event);
-        log.info("Event deleted successfully. id={}", eventId);
+        // Soft delete
+        event.setDeleted(true);
+        event.setDeletedAt(LocalDateTime.now());
+        event.setDeletedBy(deletedBy);
+        eventRepository.save(event);
+        
+        log.info("Event soft-deleted successfully. id={}", eventId);
     }
 
     @Override
