@@ -25,4 +25,12 @@ public interface AnnouncementService {
     void deleteAnnouncement(UUID announcementId, AdminUser deletedBy);
 
     AnnouncementResponse changeAnnouncementStatus(UUID announcementId, String statusRaw, AdminUser updatedBy, String ipAddress, String userAgent);
+
+    /**
+     * Send a push notification for a sent announcement to all registered devices.
+     * - Can only notify announcements with status = sent.
+     * - Sets notification_sent = true and records notification_sent_at.
+     * - Returns the number of devices successfully notified (1 for topic sends).
+     */
+    int notifyAnnouncement(UUID announcementId);
 }

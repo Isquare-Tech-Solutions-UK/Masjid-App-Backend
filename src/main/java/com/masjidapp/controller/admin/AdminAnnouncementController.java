@@ -153,6 +153,34 @@ public class AdminAnnouncementController {
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
+    /**
+     * POST /admin/announcements/{id}/notify
+     * Send a push notification for a sent announcement to all registered devices.
+     */
+    @Operation(summary = "Send Announcement Notification",
+            description = "Send a push notification for a sent announcement to all registered devices.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Notification sent successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Announcement is not in sent status",
+                    content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Announcement not found",
+                    content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
+    @PostMapping("/{id}/notify")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> notifyAnnouncement(
+            @Parameter(description = "UUID of the announcement", required = true) @PathVariable UUID id) {
+
+        log.info("Received request to notify announcement. id={}", id);
+
+        int notifiedCount = announcementService.notifyAnnouncement(id);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("devicesNotified", notifiedCount);
+        result.put("announcementId", id);
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     private Map<String, Object> buildPagination(Page<?> page) {
         Map<String, Object> pagination = new HashMap<>();
         pagination.put("page", page.getNumber());

@@ -269,6 +269,31 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     }
 
     /**
+     * Send a push notification for a sent announcement to all registered devices.
+     * - Can only notify announcements with status = sent.
+     * - Reuses the existing private sendAnnouncementNotification helper.
+     * - Returns 1 (topic-based send always targets all subscribed devices at once).
+     */
+    @Override
+    @Transactional
+    public int notifyAnnouncement(UUID announcementId) {
+        log.debug("Sending push notification for announcement. id={}", announcementId);
+
+        Announcement announcement = announcementRepository.findById(announcementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement not found with id: " + announcementId));
+
+        if (announcement.getStatus() != AnnouncementStatus.sent) {
+            throw new IllegalArgumentException(
+                    "Only sent announcements can be notified. Current status: " + announcement.getStatus());
+        }
+
+        sendAnnouncementNotification(announcement);
+
+        log.info("Announcement notification sent via topic. id={}", announcementId);
+        return 1;
+    }
+
+    /**
      * Send FCM push notification for an announcement via topic and mark it as sent.
      */
     private void sendAnnouncementNotification(Announcement announcement) {
