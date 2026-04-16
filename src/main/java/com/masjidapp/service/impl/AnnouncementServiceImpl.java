@@ -117,7 +117,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
             String search,
             Pageable pageable) {
 
-        log.debug("Fetching admin announcements - status={}, search={}, page={}", status, search, pageable.getPageNumber());
+        log.debug("Fetching admin announcements - status={}, search={}, page={}", status, search,
+                pageable.getPageNumber());
 
         List<Announcement> allAnnouncements = announcementRepository.findAll();
 
@@ -138,7 +139,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                 .filter(ann -> statusFilter == null || ann.getStatus() == statusFilter)
                 .filter(ann -> {
                     if (startDate != null && endDate != null) {
-                        return (ann.getScheduledAt() != null) && !ann.getScheduledAt().isBefore(startDate) && !ann.getScheduledAt().isAfter(endDate);
+                        return (ann.getScheduledAt() != null) && !ann.getScheduledAt().isBefore(startDate)
+                                && !ann.getScheduledAt().isAfter(endDate);
                     }
                     return true;
                 })
@@ -146,55 +148,16 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                     if (StringUtils.hasText(search)) {
                         String term = search.toLowerCase();
                         boolean matchesTitle = ann.getTitle() != null && ann.getTitle().toLowerCase().contains(term);
-                        boolean matchesMessage = ann.getMessage() != null && ann.getMessage().toLowerCase().contains(term);
+                        boolean matchesMessage = ann.getMessage() != null
+                                && ann.getMessage().toLowerCase().contains(term);
                         return matchesTitle || matchesMessage;
                     }
                     return true;
                 })
                 // Use creation date if scheduled at is null to ensure a stable sort
                 .sorted(Comparator.comparing(
-                        (Announcement ann) -> ann.getScheduledAt() != null ? ann.getScheduledAt() : ann.getCreatedAt()
-                ).reversed())
-                .collect(Collectors.toList());
-
-        int total = filtered.size();
-        int pageNumber = pageable.getPageNumber();
-        int pageSize = pageable.getPageSize();
-
-        int fromIndex = Math.max(pageNumber * pageSize, 0);
-        int toIndex = Math.min(fromIndex + pageSize, total);
-
-        List<AnnouncementResponse> content = (fromIndex >= total) 
-                ? List.of() 
-                : filtered.subList(fromIndex, toIndex).stream()
-                          .map(AnnouncementResponse::fromEntity)
-                          .collect(Collectors.toList());
-
-        return new PageImpl<>(content, pageable, total);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<AnnouncementResponse> getMemberAnnouncements(
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            Pageable pageable) {
-
-        log.debug("Fetching member announcements - startDate={}, endDate={}, page={}", startDate, endDate, pageable.getPageNumber());
-
-        List<Announcement> allAnnouncements = announcementRepository.findAll();
-
-        List<Announcement> filtered = allAnnouncements.stream()
-                .filter(ann -> ann.getStatus() == AnnouncementStatus.sent)
-                .filter(ann -> {
-                    if (startDate != null && endDate != null) {
-                        return (ann.getScheduledAt() != null) && !ann.getScheduledAt().isBefore(startDate) && !ann.getScheduledAt().isAfter(endDate);
-                    }
-                    return true;
-                })
-                .sorted(Comparator.comparing(
-                        (Announcement ann) -> ann.getScheduledAt() != null ? ann.getScheduledAt() : ann.getCreatedAt()
-                ).reversed())
+                        (Announcement ann) -> ann.getScheduledAt() != null ? ann.getScheduledAt() : ann.getCreatedAt())
+                        .reversed())
                 .collect(Collectors.toList());
 
         int total = filtered.size();
@@ -207,8 +170,50 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         List<AnnouncementResponse> content = (fromIndex >= total)
                 ? List.of()
                 : filtered.subList(fromIndex, toIndex).stream()
-                          .map(AnnouncementResponse::fromEntity)
-                          .collect(Collectors.toList());
+                        .map(AnnouncementResponse::fromEntity)
+                        .collect(Collectors.toList());
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AnnouncementResponse> getMemberAnnouncements(
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+
+        log.debug("Fetching member announcements - startDate={}, endDate={}, page={}", startDate, endDate,
+                pageable.getPageNumber());
+
+        List<Announcement> allAnnouncements = announcementRepository.findAll();
+
+        List<Announcement> filtered = allAnnouncements.stream()
+                .filter(ann -> ann.getStatus() == AnnouncementStatus.sent)
+                .filter(ann -> {
+                    if (startDate != null && endDate != null) {
+                        return (ann.getScheduledAt() != null) && !ann.getScheduledAt().isBefore(startDate)
+                                && !ann.getScheduledAt().isAfter(endDate);
+                    }
+                    return true;
+                })
+                .sorted(Comparator.comparing(
+                        (Announcement ann) -> ann.getScheduledAt() != null ? ann.getScheduledAt() : ann.getCreatedAt())
+                        .reversed())
+                .collect(Collectors.toList());
+
+        int total = filtered.size();
+        int pageNumber = pageable.getPageNumber();
+        int pageSize = pageable.getPageSize();
+
+        int fromIndex = Math.max(pageNumber * pageSize, 0);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+
+        List<AnnouncementResponse> content = (fromIndex >= total)
+                ? List.of()
+                : filtered.subList(fromIndex, toIndex).stream()
+                        .map(AnnouncementResponse::fromEntity)
+                        .collect(Collectors.toList());
 
         return new PageImpl<>(content, pageable, total);
     }
@@ -242,8 +247,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
     @Override
     @Transactional
-    public AnnouncementResponse changeAnnouncementStatus(UUID announcementId, String statusRaw, AdminUser updatedBy, String ipAddress, String userAgent) {
-        log.debug("Changing announcement status. id={}, newStatus={}, updatedBy={}", announcementId, statusRaw, updatedBy.getEmail());
+    public AnnouncementResponse changeAnnouncementStatus(UUID announcementId, String statusRaw, AdminUser updatedBy,
+            String ipAddress, String userAgent) {
+        log.debug("Changing announcement status. id={}, newStatus={}, updatedBy={}", announcementId, statusRaw,
+                updatedBy.getEmail());
 
         Announcement announcement = announcementRepository.findById(announcementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Announcement not found with id: " + announcementId));
@@ -253,6 +260,9 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
         if (currentStatus == AnnouncementStatus.sent && requestedStatus != AnnouncementStatus.sent) {
             throw new IllegalArgumentException("Cannot change announcement status from 'sent'");
+        }
+        if (currentStatus == AnnouncementStatus.cancelled) {
+            throw new IllegalArgumentException("Cannot change status of a cancelled announcement.");
         }
 
         announcement.setStatus(requestedStatus);
@@ -269,14 +279,38 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     }
 
     /**
+     * Send a push notification for a sent announcement to all registered devices.
+     * - Can only notify announcements with status = sent.
+     * - Reuses the existing private sendAnnouncementNotification helper.
+     * - Returns 1 (topic-based send always targets all subscribed devices at once).
+     */
+    @Override
+    @Transactional
+    public int notifyAnnouncement(UUID announcementId) {
+        log.debug("Sending push notification for announcement. id={}", announcementId);
+
+        Announcement announcement = announcementRepository.findById(announcementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement not found with id: " + announcementId));
+
+        if (announcement.getStatus() != AnnouncementStatus.sent) {
+            throw new IllegalArgumentException(
+                    "Only sent announcements can be notified. Current status: " + announcement.getStatus());
+        }
+
+        sendAnnouncementNotification(announcement);
+
+        log.info("Announcement notification sent via topic. id={}", announcementId);
+        return 1;
+    }
+
+    /**
      * Send FCM push notification for an announcement via topic and mark it as sent.
      */
     private void sendAnnouncementNotification(Announcement announcement) {
         try {
             Map<String, String> data = Map.of(
                     "type", "announcement",
-                    "id", announcement.getId().toString()
-            );
+                    "id", announcement.getId().toString());
 
             fcmService.sendToTopic("announcements", announcement.getTitle(), announcement.getMessage(), data);
 
@@ -286,7 +320,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
             log.info("Announcement notification sent via topic. id={}", announcement.getId());
         } catch (Exception e) {
-            log.error("Failed to send announcement notification. id={}, error={}", announcement.getId(), e.getMessage(), e);
+            log.error("Failed to send announcement notification. id={}, error={}", announcement.getId(), e.getMessage(),
+                    e);
         }
     }
 

@@ -451,6 +451,15 @@ public class EventServiceImpl implements EventService {
             throw new IllegalArgumentException("Cannot change event status from 'published' back to 'draft'");
         }
 
+        if (requestedStatus == EventStatus.cancelled) {
+            if (currentStatus == EventStatus.completed) {
+                throw new IllegalArgumentException("Cannot cancel a completed event.");
+            }
+            if (currentStatus == EventStatus.cancelled) {
+                throw new IllegalArgumentException("Event is already cancelled.");
+            }
+        }
+
         if (requestedStatus == EventStatus.published && currentStatus != EventStatus.published) {
             event.setPublishedAt(LocalDateTime.now());
         }

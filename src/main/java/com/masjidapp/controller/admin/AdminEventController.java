@@ -251,6 +251,36 @@ public class AdminEventController {
 
                 return ResponseEntity.ok(ApiResponse.success(updated));
         }
+
+        /**
+         * PATCH /admin/events/{id}/cancel
+         * Cancel a draft or published event.
+         */
+        @Operation(summary = "Cancel Event",
+                description = "Cancel a draft or published event. Cannot cancel completed or already-cancelled events.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Event cancelled successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Event cannot be cancelled (completed or already cancelled)",
+                                        content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Event not found",
+                                        content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
+        @PatchMapping("/{id}/cancel")
+        public ResponseEntity<ApiResponse<EventResponse>> cancelEvent(
+                        @Parameter(description = "UUID of the event", required = true) @PathVariable UUID id,
+                        HttpServletRequest httpRequest) {
+
+                log.info("Received request to cancel event. id={}", id);
+
+                String ipAddress = httpRequest.getRemoteAddr();
+                String userAgent = httpRequest.getHeader("User-Agent");
+
+                EventResponse updated = eventService.changeEventStatus(id, "cancelled",
+                                authRequestContainer.getAdminUser(), ipAddress, userAgent);
+
+                return ResponseEntity.ok(ApiResponse.success(updated));
+        }
+
         /**
          * POST /admin/events/{id}/notify
          * Send a push notification for a published event to all registered devices.
