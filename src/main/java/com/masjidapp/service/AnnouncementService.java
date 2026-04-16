@@ -31,6 +31,12 @@ public interface AnnouncementService {
             String ipAddress, String userAgent);
 
     /**
+     * Cancel a draft or scheduled announcement.
+     * - Cannot cancel an already sent or cancelled announcement.
+     */
+    AnnouncementResponse cancelAnnouncement(UUID announcementId, AdminUser cancelledBy);
+
+    /**
      * Send a push notification for a sent announcement to all registered devices.
      * - Can only notify announcements with status = sent.
      * - Sets notification_sent = true and records notification_sent_at.

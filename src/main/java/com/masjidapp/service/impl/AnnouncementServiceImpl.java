@@ -279,6 +279,32 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     }
 
     /**
+     * Cancel a draft or scheduled announcement.
+     * - Cannot cancel an already sent or cancelled announcement.
+     */
+    @Override
+    @Transactional
+    public AnnouncementResponse cancelAnnouncement(UUID announcementId, AdminUser cancelledBy) {
+        log.debug("Cancelling announcement. id={}, cancelledBy={}", announcementId, cancelledBy.getEmail());
+
+        Announcement announcement = announcementRepository.findById(announcementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement not found with id: " + announcementId));
+
+        if (announcement.getStatus() == AnnouncementStatus.sent) {
+            throw new IllegalArgumentException("Cannot cancel an announcement that has already been sent.");
+        }
+        if (announcement.getStatus() == AnnouncementStatus.cancelled) {
+            throw new IllegalArgumentException("Announcement is already cancelled.");
+        }
+
+        announcement.setStatus(AnnouncementStatus.cancelled);
+        Announcement saved = announcementRepository.save(announcement);
+
+        log.info("Announcement cancelled successfully. id={}", announcementId);
+        return AnnouncementResponse.fromEntity(saved);
+    }
+
+    /**
      * Send a push notification for a sent announcement to all registered devices.
      * - Can only notify announcements with status = sent.
      * - Reuses the existing private sendAnnouncementNotification helper.

@@ -154,6 +154,31 @@ public class AdminAnnouncementController {
         }
 
         /**
+         * PATCH /admin/announcements/{id}/cancel
+         * Cancel a draft or scheduled announcement.
+         */
+        @Operation(summary = "Cancel Announcement",
+                description = "Cancel a draft or scheduled announcement. Cannot cancel sent or already-cancelled announcements.")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Announcement cancelled successfully"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Announcement cannot be cancelled (already sent or cancelled)",
+                                        content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Announcement not found",
+                                        content = @Content(schema = @Schema(implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+        })
+        @PatchMapping("/{id}/cancel")
+        public ResponseEntity<ApiResponse<AnnouncementResponse>> cancelAnnouncement(
+                        @Parameter(description = "UUID of the announcement", required = true) @PathVariable UUID id) {
+
+                log.info("Received request to cancel announcement. id={}", id);
+
+                AnnouncementResponse response = announcementService.cancelAnnouncement(
+                                id, authRequestContainer.getAdminUser());
+
+                return ResponseEntity.ok(ApiResponse.success(response));
+        }
+
+        /**
          * POST /admin/announcements/{id}/notify
          * Send a push notification for a sent announcement to all registered devices.
          */
