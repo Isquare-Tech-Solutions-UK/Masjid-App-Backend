@@ -2,7 +2,6 @@
 services:
   app:
     image: ${DOCKER_USERNAME}/masjid-backend:dev-latest
-    build: .
     container_name: masjid-backend-dev
     restart: always
     environment:
