@@ -1,17 +1,18 @@
+
 package com.masjidapp.service.impl;
 
+import com.masjidapp.config.MinioConfig;
 import com.masjidapp.service.S3Service;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,11 +22,12 @@ import java.util.UUID;
 /**
  * S3ServiceImpl
  *
- * Handles Amazon S3 operations related to event images.
+ * Handles MinIO object storage operations related to event images.
+ * (Class name retained for compatibility with existing callers.)
  *
  * Responsibilities:
  * - Upload multiple images
- * - Generate structured S3 object keys
+ * - Generate structured object keys
  * - Return public object URLs
  *
  * Key Structure:
@@ -36,20 +38,36 @@ import java.util.UUID;
 @Slf4j
 public class S3ServiceImpl implements S3Service {
 
-    private final S3Client s3Client;
+    private final MinioClient minioClient;
 
-    @Value("${app.s3.bucket-name}")
+    @Value("${minio.bucket}")
     private String bucketName;
 
-    @Value("${spring.cloud.aws.region.static}")
-    private String region;
+    // Public-facing URL, reachable from the browser/frontend, used only to build
+    // the object URLs returned in API responses. The MinioClient bean (used for
+    // the actual SDK upload/delete calls) is configured separately from
+    // minio.endpoint, which may be a backend-only/Docker-internal address.
+    @Value("${minio.public-url}")
+    private String publicUrl;
+
+    @Value("${minio.secure}")
+    private boolean secure;
+
+    // Legacy AWS S3 config, retained only to recognize and delete images uploaded
+    // before the MinIO migration. Object keys are looked up in the current MinIO
+    // bucket, since existing objects are expected to have been migrated there.
+    @Value("${app.s3.legacy-bucket-name}")
+    private String legacyBucketName;
+
+    @Value("${app.s3.legacy-region}")
+    private String legacyRegion;
 
 
     /**
-     * Uploads event images to S3.
+     * Uploads event images to MinIO.
      *
      * @param files List of uploaded multipart files
-     * @return List of public S3 URLs
+     * @return List of public object URLs
      */
     @Override
     public List<String> uploadEventImages(List<MultipartFile> files) {
@@ -57,11 +75,11 @@ public class S3ServiceImpl implements S3Service {
         List<String> uploadedUrls = new ArrayList<>();
 
         if (files == null || files.isEmpty()) {
-            log.debug("S3 Upload Skipped: No files provided.");
+            log.debug("MinIO Upload Skipped: No files provided.");
             return uploadedUrls;
         }
 
-        log.info("S3 Upload Initiated: totalFiles={}, bucket={}", files.size(), bucketName);
+        log.info("MinIO Upload Initiated: totalFiles={}, bucket={}", files.size(), bucketName);
 
         String basePath = generateBasePath();
 
@@ -70,99 +88,100 @@ public class S3ServiceImpl implements S3Service {
             MultipartFile file = files.get(index);
 
             if (file == null || file.isEmpty()) {
-                log.warn("S3 Upload Skipped: Empty file at index={}", index);
+                log.warn("MinIO Upload Skipped: Empty file at index={}", index);
                 continue;
             }
 
             String key = buildObjectKey(basePath, file.getOriginalFilename(), index);
 
             try {
-                uploadToS3(key, file);
+                uploadToMinio(key, file);
                 String fileUrl = generatePublicUrl(key);
 
                 uploadedUrls.add(fileUrl);
 
-                log.info("S3 Upload Success: key={}, size={} bytes",
+                log.info("MinIO Upload Success: key={}, size={} bytes",
                         key, file.getSize());
 
-            } catch (IOException ex) {
-                log.error("S3 Upload Failed: key={}, error={}",
+            } catch (Exception ex) {
+                log.error("MinIO Upload Failed: key={}, error={}",
                         key, ex.getMessage(), ex);
 
-                throw new RuntimeException("Failed to upload image to S3", ex);
+                throw new RuntimeException("Failed to upload image to MinIO", ex);
             }
         }
 
-        log.info("S3 Upload Completed: successCount={}", uploadedUrls.size());
+        log.info("MinIO Upload Completed: successCount={}", uploadedUrls.size());
 
         return uploadedUrls;
     }
 
     /**
-     * Deletes a list of event images from S3 using their public URLs.
-     * Extracts the S3 object key from each URL by stripping the bucket/region host
-     * prefix.
+     * Deletes a list of event images from MinIO using their public URLs.
+     * Extracts the object key from each URL by stripping either the current
+     * MinIO URL prefix or the legacy AWS S3 URL prefix (for images uploaded
+     * before the migration).
      *
-     * Example URL: https://bucket.s3.region.amazonaws.com/events/2025/01/uuid-1.jpg
-     * Extracted key: events/2025/01/uuid-1.jpg
+     * Example MinIO URL: http://minio.internal:9000/masjid-app-media/events/2025/01/uuid-1.jpg
+     * Example legacy URL: https://masjid-app-media.s3.ap-south-1.amazonaws.com/events/2025/01/uuid-1.jpg
+     * Extracted key (both cases): events/2025/01/uuid-1.jpg
      */
     @Override
     public void deleteEventImages(List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
-            log.debug("S3 Delete Skipped: No image URLs provided.");
+            log.debug("MinIO Delete Skipped: No image URLs provided.");
             return;
         }
 
-        log.info("S3 Delete Initiated: totalFiles={}, bucket={}", imageUrls.size(), bucketName);
+        log.info("MinIO Delete Initiated: totalFiles={}, bucket={}", imageUrls.size(), bucketName);
 
-        String urlPrefix = String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
+        String minioUrlPrefix = generatePublicUrl("");
+        String legacyUrlPrefix = String.format("https://%s.s3.%s.amazonaws.com/", legacyBucketName, legacyRegion);
 
         for (String url : imageUrls) {
             if (url == null || url.isBlank()) {
-                log.warn("S3 Delete Skipped: Blank URL encountered.");
+                log.warn("MinIO Delete Skipped: Blank URL encountered.");
                 continue;
             }
 
-            if (!url.startsWith(urlPrefix)) {
-                log.warn("S3 Delete Skipped: URL does not match expected bucket prefix. url={}", url);
+            String key = extractObjectKey(url, minioUrlPrefix, legacyUrlPrefix);
+            if (key == null) {
+                log.warn("MinIO Delete Skipped: URL does not match expected bucket prefix. url={}", url);
                 continue;
             }
-
-            String key = url.substring(urlPrefix.length());
 
             try {
-                DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                RemoveObjectArgs removeRequest = RemoveObjectArgs.builder()
                         .bucket(bucketName)
-                        .key(key)
+                        .object(key)
                         .build();
 
-                s3Client.deleteObject(deleteRequest);
-                log.info("S3 Delete Success: key={}", key);
+                minioClient.removeObject(removeRequest);
+                log.info("MinIO Delete Success: key={}", key);
 
             } catch (Exception ex) {
-                log.error("S3 Delete Failed: key={}, error={}", key, ex.getMessage(), ex);
-                throw new RuntimeException("Failed to delete image from S3: " + key, ex);
+                log.error("MinIO Delete Failed: key={}, error={}", key, ex.getMessage(), ex);
+                throw new RuntimeException("Failed to delete image from MinIO: " + key, ex);
             }
         }
 
-        log.info("S3 Delete Completed: totalDeleted={}", imageUrls.size());
+        log.info("MinIO Delete Completed: totalDeleted={}", imageUrls.size());
     }
 
     /**
-     * Upload single file to S3.
+     * Upload single file to MinIO.
      */
-    private void uploadToS3(String key, MultipartFile file) throws IOException {
+    private void uploadToMinio(String key, MultipartFile file) throws Exception {
+        try (InputStream inputStream = file.getInputStream()) {
+            PutObjectArgs putRequest = PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(key)
+                    .stream(inputStream, file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build();
 
-        PutObjectRequest putRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .contentType(file.getContentType())
-                .build();
-
-        s3Client.putObject(
-                putRequest,
-                RequestBody.fromBytes(file.getBytes())
-        );
+            minioClient.putObject(putRequest);
+        }
     }
 
     /**
@@ -176,7 +195,7 @@ public class S3ServiceImpl implements S3Service {
     }
 
     /**
-     * Build unique S3 object key.
+     * Build unique object key.
      */
     private String buildObjectKey(String basePath, String originalFilename, int index) {
         String extension = extractExtension(originalFilename);
@@ -189,17 +208,30 @@ public class S3ServiceImpl implements S3Service {
     }
 
     /**
-     * Generate public URL for uploaded object.
+     * Generate public URL for an uploaded object.
      */
     private String generatePublicUrl(String key) {
         return String.format(
-                "https://%s.s3.%s.amazonaws.com/%s",
+                "%s/%s/%s",
+                MinioConfig.resolveEndpointUrl(publicUrl, secure),
                 bucketName,
-                region,
                 key
         );
     }
 
+    /**
+     * Extract the object key from a stored URL, matching either the current
+     * MinIO URL prefix or the legacy AWS S3 URL prefix.
+     */
+    private String extractObjectKey(String url, String minioUrlPrefix, String legacyUrlPrefix) {
+        if (url.startsWith(minioUrlPrefix)) {
+            return url.substring(minioUrlPrefix.length());
+        }
+        if (url.startsWith(legacyUrlPrefix)) {
+            return url.substring(legacyUrlPrefix.length());
+        }
+        return null;
+    }
 
     /**
      * Extract file extension from filename.
