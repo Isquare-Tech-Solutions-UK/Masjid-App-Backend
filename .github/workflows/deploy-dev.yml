@@ -81,7 +81,7 @@ jobs:
             export MINIO_SECURE=${{ secrets.MINIO_SECURE }}
             export JWT_SECRET=${{ secrets.JWT_SECRET }}
             export MEMBER_API_KEY=${{ secrets.MEMBER_API_KEY }}
-            export FIREBASE_SERVICE_ACCOUNT_JSON=${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+            export FIREBASE_SERVICE_ACCOUNT_JSON='${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
             export STRIPE_CLIENT_ID=${{ secrets.STRIPE_CLIENT_ID }}
             export STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             export STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
