@@ -239,8 +239,8 @@ public class EventServiceImpl implements EventService {
                     }
                     return true;
                 })
-                // sort by start_time/date DESC
-                .sorted(Comparator.comparing(Event::getDate).reversed())
+                // sort by event date DESC
+                .sorted(Comparator.comparing(Event::getDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
 
         int total = filtered.size();
@@ -300,8 +300,8 @@ public class EventServiceImpl implements EventService {
                     }
                     return true;
                 })
-                // sort by start_time/date DESC
-                .sorted(Comparator.comparing(Event::getDate).reversed())
+                // sort by createdAt DESC
+                .sorted(Comparator.comparing(Event::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
 
         int total = filtered.size();

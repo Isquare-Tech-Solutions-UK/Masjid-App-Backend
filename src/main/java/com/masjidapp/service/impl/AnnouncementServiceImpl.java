@@ -192,9 +192,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                     }
                     return true;
                 })
-                .sorted(Comparator.comparing(
-                        (Announcement ann) -> ann.getScheduledAt() != null ? ann.getScheduledAt() : ann.getCreatedAt()
-                ).reversed())
+                // sort by createdAt DESC
+                .sorted(Comparator.comparing(Announcement::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
 
         int total = filtered.size();

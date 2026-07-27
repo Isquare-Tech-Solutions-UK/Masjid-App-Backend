@@ -72,7 +72,7 @@ public class MemberAnnouncementController {
         log.info("Fetching member announcements - startDate={}, endDate={}, page={}, size={}",
                 startDate, endDate, page, size);
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("scheduledAt").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<AnnouncementResponse> pageResult = announcementService.getMemberAnnouncements(
                 startDate, endDate, pageable);
 
