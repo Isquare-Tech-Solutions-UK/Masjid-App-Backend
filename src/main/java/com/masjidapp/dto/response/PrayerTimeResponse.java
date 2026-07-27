@@ -27,6 +27,9 @@ public class PrayerTimeResponse {
     @JsonProperty("hijriDate")
     private String hijriDate;
 
+    @JsonProperty("hijriDay")
+    private String hijriDay;
+
     @JsonProperty("prayers")
     private JsonNode prayers;
 
@@ -43,10 +46,22 @@ public class PrayerTimeResponse {
      * Convert PrayerTime entity to PrayerTimeResponse DTO
      */
     public static PrayerTimeResponse fromEntity(PrayerTime prayerTime) {
+        if (prayerTime == null) return null;
+
+        String rawHijri = prayerTime.getHijriDate();
+        String hijriDateVal = rawHijri;
+        String hijriDayVal = rawHijri;
+
+        if (rawHijri != null && rawHijri.contains(" ")) {
+            hijriDateVal = rawHijri.split(" ")[0];
+            hijriDayVal = rawHijri;
+        }
+
         return PrayerTimeResponse.builder()
                 .id(prayerTime.getId())
                 .date(prayerTime.getDate())
-                .hijriDate(prayerTime.getHijriDate())
+                .hijriDate(hijriDateVal)
+                .hijriDay(hijriDayVal)
                 .prayers(prayerTime.getPrayers())
                 .jumuahTimes(prayerTime.getJumuahTimes())
                 .createdAt(prayerTime.getCreatedAt())
@@ -55,3 +70,4 @@ public class PrayerTimeResponse {
     }
 
 }
+
