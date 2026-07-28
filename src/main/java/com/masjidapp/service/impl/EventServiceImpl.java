@@ -420,12 +420,6 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new com.masjidapp.exception.EventNotFoundException("Event not found with id: " + eventId));
 
-        if (event.getStatus() != EventStatus.cancelled) {
-            log.warn("Cannot delete non-cancelled event. id={}, status={}", eventId, event.getStatus());
-            throw new com.masjidapp.exception.InvalidEventStateException(
-                    "Only events with status CANCELLED can be deleted. Current status: " + event.getStatus());
-        }
-
         // Soft delete
         event.setDeleted(true);
         event.setDeletedAt(LocalDateTime.now());
