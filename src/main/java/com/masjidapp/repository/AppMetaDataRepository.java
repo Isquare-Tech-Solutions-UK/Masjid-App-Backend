@@ -12,4 +12,8 @@ public interface AppMetaDataRepository extends JpaRepository<AppMetaData, UUID> 
     boolean existsByModuleNameIgnoreCaseAndValueIgnoreCase(String moduleName, String value);
 
     List<AppMetaData> findByModuleName(String moduleName);
+
+    java.util.Optional<AppMetaData> findByModuleNameAndValue(String moduleName, String value);
+
+    void deleteByModuleNameAndValue(String moduleName, String value);
 }

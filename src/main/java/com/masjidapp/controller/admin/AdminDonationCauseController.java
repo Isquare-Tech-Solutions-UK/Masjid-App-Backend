@@ -18,6 +18,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.masjidapp.dto.request.DonationCauseUpdateRequest;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
 @RestController
 @RequestMapping("/admin/donation-cause")
 @RequiredArgsConstructor
@@ -44,5 +49,24 @@ public class AdminDonationCauseController {
         log.info("POST /admin/donation-cause - creating donation cause: {}", request.getData().getCause());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(donationCauseService.createCause(request)));
+    }
+
+    @PutMapping
+    @Operation(summary = "Update a donation cause",
+            description = "Updates an existing donation cause name and returns the updated list of causes.")
+    public ResponseEntity<ApiResponse<DonationCauseListResponse>> updateDonationCause(
+            @Valid @RequestBody DonationCauseUpdateRequest request) {
+        log.info("PUT /admin/donation-cause - updating cause from '{}' to '{}'", request.getOldCause(), request.getNewCause());
+        return ResponseEntity.ok(ApiResponse.success(
+                donationCauseService.updateCause(request.getOldCause(), request.getNewCause())));
+    }
+
+    @DeleteMapping
+    @Operation(summary = "Delete a donation cause",
+            description = "Deletes a donation cause by name and returns the updated list of causes.")
+    public ResponseEntity<ApiResponse<DonationCauseListResponse>> deleteDonationCause(
+            @RequestParam("cause") String cause) {
+        log.info("DELETE /admin/donation-cause - deleting cause: {}", cause);
+        return ResponseEntity.ok(ApiResponse.success(donationCauseService.deleteCause(cause)));
     }
 }

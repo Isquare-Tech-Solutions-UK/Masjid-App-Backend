@@ -8,4 +8,8 @@ public interface DonationCauseService {
     DonationCauseListResponse getAllCauses();
 
     DonationCauseListResponse createCause(DonationCauseCreateRequest request);
+
+    DonationCauseListResponse updateCause(String oldCause, String newCause);
+
+    DonationCauseListResponse deleteCause(String cause);
 }

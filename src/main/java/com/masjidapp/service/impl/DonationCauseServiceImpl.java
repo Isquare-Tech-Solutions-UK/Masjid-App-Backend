@@ -45,4 +45,37 @@ public class DonationCauseServiceImpl implements DonationCauseService {
 
         return getAllCauses();
     }
+
+    @Override
+    @Transactional
+    public DonationCauseListResponse updateCause(String oldCause, String newCause) {
+        String trimmedOld = oldCause.trim();
+        String trimmedNew = newCause.trim();
+
+        if (trimmedOld.equalsIgnoreCase(trimmedNew)) {
+            return getAllCauses();
+        }
+
+        AppMetaData existing = appMetaDataRepository.findByModuleNameAndValue(CAMPAIGN_MODULE, trimmedOld)
+                .orElseThrow(() -> new IllegalArgumentException("Donation cause not found: " + trimmedOld));
+
+        if (appMetaDataRepository.existsByModuleNameIgnoreCaseAndValueIgnoreCase(CAMPAIGN_MODULE, trimmedNew)) {
+            throw new IllegalArgumentException("Donation cause already exists: " + trimmedNew);
+        }
+
+        existing.setValue(trimmedNew);
+        appMetaDataRepository.save(existing);
+        log.info("Updated donation cause from '{}' to '{}'", trimmedOld, trimmedNew);
+
+        return getAllCauses();
+    }
+
+    @Override
+    @Transactional
+    public DonationCauseListResponse deleteCause(String cause) {
+        String trimmed = cause.trim();
+        appMetaDataRepository.deleteByModuleNameAndValue(CAMPAIGN_MODULE, trimmed);
+        log.info("Deleted donation cause: {}", trimmed);
+        return getAllCauses();
+    }
 }
