@@ -1,10 +1,12 @@
 package com.masjidapp.entity;
 
+import com.masjidapp.util.crypto.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -68,11 +70,27 @@ public class MasjidSettings {
     @Builder.Default
     private Payment payment = new Payment();
 
-    @Column(name = "stripe_account_id")
-    private String stripeAccountId;
+    // ── Direct Stripe integration (charity's own standalone account) ──
+    // Publishable key is public — served to the mobile app, stored in plain text.
+    @Column(name = "stripe_publishable_key")
+    private String stripePublishableKey;
 
-    @Column(name = "stripe_connected_at")
-    private java.time.Instant stripeConnectedAt;
+    // Secret key — encrypted at rest (AES-256-GCM). Never exposed to any client, never logged.
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "stripe_secret_key_enc")
+    private String stripeSecretKey;
+
+    // Webhook signing secret from the charity's own Stripe dashboard — encrypted at rest.
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "stripe_webhook_secret_enc")
+    private String stripeWebhookSecret;
+
+    // "test" or "live" — derived from the key prefix, for a sanity check / UI badge.
+    @Column(name = "stripe_key_mode", length = 10)
+    private String stripeKeyMode;
+
+    @Column(name = "stripe_keys_updated_at")
+    private Instant stripeKeysUpdatedAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

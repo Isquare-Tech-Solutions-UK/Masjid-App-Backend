@@ -61,6 +61,7 @@ logging:
     com.masjidapp: DEBUG
     org.springframework.security: DEBUG
 
+
 minio:
   # Used by the MinIO SDK client for upload/download operations (may be a
   # Docker-internal or otherwise backend-only reachable address).
@@ -83,12 +84,16 @@ app:
     service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
 
   stripe:
-    client-id: ${STRIPE_CLIENT_ID}
-    secret-key: ${STRIPE_SECRET_KEY}
-    signing-secret: ${STRIPE_WEBHOOK_SECRET}
-    oauth-redirect-uri: ${STRIPE_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/admin/settings/stripe/callback}
+    # Estimate of Stripe's processing fee, used to gross up the charge (donor pays
+    # the fee so the charity nets the full donation). Not a platform fee.
     fee-percent: ${STRIPE_FEE_PERCENT:0.015}
     fee-fixed: ${STRIPE_FEE_FIXED:0.20}
+  encryption:
+    # Base64-encoded 256-bit AES key used to encrypt the charity's Stripe secret key
+    # and webhook signing secret at rest. MUST be overridden per environment and MUST
+    # NOT be reused across environments. The default below is DEV-ONLY — never use it
+    # in production; supply ENCRYPTION_MASTER_KEY from a secrets manager instead.
+    master-key: ${ENCRYPTION_MASTER_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
 member:

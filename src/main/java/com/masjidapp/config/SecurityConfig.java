@@ -50,8 +50,6 @@ public class SecurityConfig {
                                 "/admin/auth/refresh",
                                 "/admin/auth/logout",
                                 "/actuator/health",
-                                // Stripe OAuth callback — called by Stripe redirect, no JWT available
-                                "/admin/settings/stripe/callback",
                                 // Swagger UI & OpenAPI docs
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
@@ -64,8 +62,8 @@ public class SecurityConfig {
                         // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
                         .requestMatchers("/member/**").permitAll()
 
-                        // Webhook endpoints - Stripe signature verification (to be implemented)
-                        .requestMatchers("/webhooks/**").permitAll() // TODO: Add Stripe verification
+                        // Webhook endpoints - authenticated by Stripe signature (see StripeWebhookController), not JWT
+                        .requestMatchers("/webhooks/**").permitAll()
 
                         // All other admin endpoints require JWT authentication
                         .requestMatchers("/admin/**").authenticated()

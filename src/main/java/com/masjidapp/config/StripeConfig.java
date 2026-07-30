@@ -13,13 +13,10 @@ import java.math.BigDecimal;
 @Setter
 public class StripeConfig {
 
-    private String clientId;
-    private String secretKey;
-    private String signingSecret;
-    private String oauthRedirectUri;
-
-    // Fee charged to the donor (covers Stripe's processing cost)
-    // Default: UK card rate — 1.5% + £0.20
+    // Estimate of Stripe's own processing fee, used to gross up the charge so the
+    // charity always receives the full donation amount. This is NOT a platform fee.
+    // Default: UK card rate — 1.5% + £0.20. The actual fee is reconciled after the
+    // charge settles (see StripeWebhookServiceImpl#fetchAndStoreActualFee).
     private BigDecimal feePercent = new BigDecimal("0.015");
     private BigDecimal feeFixed = new BigDecimal("0.20");
 }

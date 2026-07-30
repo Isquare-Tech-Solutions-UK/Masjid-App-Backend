@@ -18,6 +18,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - MEMBER_API_KEY=${MEMBER_API_KEY}
       - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
+      # Base64 256-bit AES key encrypting the charity's Stripe secret + webhook secret at rest.
+      # Must be a unique, non-committed value (ideally sourced from a secrets manager).
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
     ports:
       - "8080:8080"
     depends_on:

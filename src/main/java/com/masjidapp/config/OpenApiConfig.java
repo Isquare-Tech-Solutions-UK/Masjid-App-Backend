@@ -29,7 +29,7 @@ public class OpenApiConfig {
                 .tags(List.of(
                         new Tag().name("Auth").description("Admin authentication — login, token refresh, logout"),
                         new Tag().name("Admin Settings").description("Masjid profile, payment and settings management"),
-                        new Tag().name("Stripe Connect").description("Connect the masjid's Stripe account via OAuth"),
+                        new Tag().name("Stripe Settings").description("Configure the charity's own Stripe account keys"),
                         new Tag().name("Campaigns (Admin)").description("Admin campaign management"),
                         new Tag().name("Admin Prayer Times").description("Admin prayer time management"),
                         new Tag().name("Admin Events").description("Admin event management"),
@@ -39,6 +39,7 @@ public class OpenApiConfig {
                         new Tag().name("Member Events").description("Member event access"),
                         new Tag().name("Member Announcements").description("Member announcement access"),
                         new Tag().name("Member Masjid").description("Member masjid info access"),
+                        new Tag().name("Member Stripe").description("Stripe publishable key for the mobile app"),
                         new Tag().name("Stripe Webhooks").description("Stripe event webhooks — internal use only")))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth",
