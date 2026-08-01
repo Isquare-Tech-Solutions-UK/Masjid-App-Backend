@@ -1,7 +1,7 @@
 package com.masjidapp.controller.stripe;
 
-import com.masjidapp.config.StripeConfig;
 import com.masjidapp.exception.MARequestException;
+import com.masjidapp.repository.SettingsRepository;
 import com.masjidapp.service.impl.StripeWebhookServiceImpl;
 import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.Map;
 
 @RestController
@@ -34,23 +33,29 @@ import java.util.Map;
 public class StripeWebhookController {
 
     private final StripeWebhookServiceImpl stripeWebhookServiceImpl;
-    private final StripeConfig stripeConfig;
+    private final SettingsRepository settingsRepository;
 
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<Map<String, Boolean>> stripeNotification(@RequestBody String request,
                                                                   @RequestHeader("Stripe-Signature") String stripeSignature) throws EventDataObjectDeserializationException {
+        // The signing secret belongs to the charity's own Stripe account (stored encrypted).
+        String signingSecret = settingsRepository.findAll().stream()
+                .findFirst()
+                .map(s -> s.getStripeWebhookSecret())
+                .orElse(null);
+        if (signingSecret == null) {
+            log.warn("Stripe webhook received but no signing secret configured — rejecting");
+            throw new MARequestException("Stripe webhook signing secret is not configured");
+        }
+
         Event event;
         try {
-            log.info("Received Stripe webhook event body {}", StripeUtils.toSingleLineJson(request));
-            log.info("Webhook received at {}", Instant.now());
-            final String signingSecret = stripeConfig.getSigningSecret();
-            event = Webhook.constructEvent(
-                    request, stripeSignature, signingSecret
-            );
-            log.info("Stripe Event ID: {}", event.getId());
+            event = Webhook.constructEvent(request, stripeSignature, signingSecret);
+            log.info("Stripe webhook verified: id={} type={}", event.getId(), event.getType());
         } catch (SignatureVerificationException e) {
-            throw new MARequestException("Stripe signature verification failure" + e);
+            // Do not log the payload or signature — avoids leaking PII / aiding forgery.
+            throw new MARequestException("Stripe signature verification failed");
         }
         processStripeEvent(event);
         return ResponseEntity.ok(Map.of("received", true));
@@ -60,10 +65,8 @@ public class StripeWebhookController {
         EventDataObjectDeserializer dataObjectDeserializer = event.getDataObjectDeserializer();
         StripeObject stripeObject;
         if (dataObjectDeserializer.getObject().isPresent()) {
-
             stripeObject = dataObjectDeserializer.getObject().get();
         } else {
-
             log.warn("Stripe object deserialization failed, using unsafe fallback");
             stripeObject = dataObjectDeserializer.deserializeUnsafe();
         }
@@ -72,11 +75,11 @@ public class StripeWebhookController {
 
     private void handleStripeWebHookFlow(Event event, StripeObject stripeObject) {
         switch (event.getType()) {
-            case "checkout.session.completed":
-                stripeWebhookServiceImpl.handleSessionCompleted(stripeObject);
+            case "payment_intent.succeeded":
+                stripeWebhookServiceImpl.handlePaymentIntentSucceeded(stripeObject);
                 break;
-            case "checkout.session.expired":
-                stripeWebhookServiceImpl.handleSessionExpired(stripeObject);
+            case "payment_intent.payment_failed":
+                stripeWebhookServiceImpl.handlePaymentIntentFailed(stripeObject);
                 break;
             default:
                 log.info("Unhandled event type: [{}]", event.getType());

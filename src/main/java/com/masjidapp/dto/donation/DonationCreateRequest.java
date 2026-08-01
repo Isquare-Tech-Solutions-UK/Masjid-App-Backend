@@ -27,18 +27,4 @@ public class DonationCreateRequest {
 
     @Schema(description = "Whether to donate anonymously", example = "false", defaultValue = "false")
     private Boolean isAnonymous = Boolean.FALSE;
-
-    @Schema(description = "Whether the donor covers the Stripe processing fee so the masjid receives the full amount",
-            example = "true", defaultValue = "false")
-    private boolean coverFee = false;
-
-    @NotBlank
-    @Schema(description = "URL to redirect to after successful payment", example = "https://yourapp.com/donate/success",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-    private String successUrl;
-
-    @NotBlank
-    @Schema(description = "URL to redirect to if the donor cancels", example = "https://yourapp.com/donate/cancel",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-    private String cancelUrl;
 }

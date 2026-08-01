@@ -5,6 +5,7 @@ import com.masjidapp.dto.donation.DonationDto;
 import com.masjidapp.entity.Campaign;
 import com.masjidapp.entity.Donation;
 import com.masjidapp.entity.DonationStatus;
+import com.masjidapp.entity.MasjidSettings;
 import com.masjidapp.exception.MARequestException;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.CampaignRepository;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,11 +38,12 @@ public class DonationServiceImpl implements DonationService {
     @Override
     @Transactional
     public Map<String, String> donateToCampaign(String campaignId, DonationCreateRequest donationCreateRequest) {
-        String stripeAccountId = settingsRepository.findAll().stream().findFirst()
-                .orElseThrow(() -> new MARequestException("Masjid settings not configured"))
-                .getStripeAccountId();
-        if (stripeAccountId == null) {
-            throw new MARequestException("Stripe is not connected. Please connect your Stripe account in Settings.");
+        MasjidSettings settings = settingsRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new MARequestException("Masjid settings not configured"));
+        String secretKey = settings.getStripeSecretKey();
+        String publishableKey = settings.getStripePublishableKey();
+        if (secretKey == null || publishableKey == null) {
+            throw new MARequestException("Stripe is not configured. Please add your Stripe keys in Settings.");
         }
 
         try {
@@ -54,22 +57,31 @@ public class DonationServiceImpl implements DonationService {
                     .processingFee(BigDecimal.ZERO)
                     .totalCharged(donationCreateRequest.getAmount())
                     .anonymous(donationCreateRequest.getIsAnonymous())
-                    .coverFee(donationCreateRequest.isCoverFee())
+                    // Donor always covers the Stripe fee so the charity receives the full amount.
+                    .coverFee(true)
                     .createdAt(Instant.now())
                     .build();
 
             Donation saved = donationRepository.save(donation);
-            Map<String, String> sessionMap = stripeService.createCheckoutSession(
-                    saved.getId(), campaignId, campaign.getTitle(), stripeAccountId, donationCreateRequest);
-            saved.setStripeCheckoutSessionId(sessionMap.get("sessionId"));
-            saved.setStripePaymentIntentId(sessionMap.get("paymentIntentId"));
-            saved.setCurrency(sessionMap.get("currency"));
+            Map<String, String> paymentInfo = stripeService.createPaymentIntent(
+                    saved.getId(), campaignId, campaign.getTitle(), secretKey, saved.getAmount());
 
-            if (sessionMap.containsKey("processingFee")) {
-                saved.setProcessingFee(new BigDecimal(sessionMap.get("processingFee")));
-                saved.setTotalCharged(saved.getAmount().add(saved.getProcessingFee()));
-            }
-            return sessionMap;
+            saved.setStripePaymentIntentId(paymentInfo.get("paymentIntentId"));
+            saved.setCurrency(paymentInfo.get("currency"));
+            saved.setProcessingFee(new BigDecimal(paymentInfo.get("processingFee")));
+            saved.setTotalCharged(new BigDecimal(paymentInfo.get("totalCharged")));
+
+            // Response for the mobile app's Stripe Payment Sheet. "paymentToken" is the
+            // PaymentIntent client secret (renamed to avoid confusion with the Stripe secret key).
+            Map<String, String> response = new HashMap<>();
+            response.put("donationId", saved.getId().toString());
+            response.put("paymentToken", paymentInfo.get("clientSecret"));
+            response.put("publishableKey", publishableKey);
+            response.put("amount", saved.getAmount().toString());
+            response.put("processingFee", paymentInfo.get("processingFee"));
+            response.put("totalCharged", paymentInfo.get("totalCharged"));
+            response.put("currency", paymentInfo.get("currency"));
+            return response;
         } catch (StripeException | RuntimeException e) {
             log.error("Donation creation failed: {}", e.getMessage(), e);
             throw new MARequestException("Error in create donation: " + e.getMessage(), e);

@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.masjidapp.dto.response.StripeStatusResponse;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -51,7 +50,7 @@ public class MasjidSettingsResponse {
     private PaymentResponse payment;
 
     @JsonProperty("stripe")
-    private StripeStatusResponse stripe;
+    private StripeSettingsResponse stripe;
 
     @JsonProperty("createdAt")
     private LocalDateTime createdAt;

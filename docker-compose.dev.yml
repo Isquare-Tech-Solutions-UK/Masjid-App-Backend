@@ -21,10 +21,9 @@ services:
       - MEMBER_API_KEY=${MEMBER_API_KEY}
       - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
 
-      - STRIPE_CLIENT_ID=${STRIPE_CLIENT_ID}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - STRIPE_OAUTH_REDIRECT_URI=${STRIPE_OAUTH_REDIRECT_URI}
+      # Charity's own Stripe keys are entered via the admin app and stored encrypted in the DB.
+      # This master key encrypts them at rest — supply a unique base64 256-bit AES key.
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
 
       - FRONTEND_URL=${FRONTEND_URL}
 
