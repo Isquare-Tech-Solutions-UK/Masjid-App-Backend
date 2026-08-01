@@ -16,10 +16,6 @@ public class DonationCreateRequest {
     @Schema(description = "Donor's full name", example = "Ahmed Ali", requiredMode = Schema.RequiredMode.REQUIRED)
     private String donorName;
 
-    @NotBlank
-    @Schema(description = "Donor's email address", example = "ahmed@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String donorEmail;
-
     @NotNull
     @Positive
     @Schema(description = "Donation amount in GBP", example = "100.00", requiredMode = Schema.RequiredMode.REQUIRED)

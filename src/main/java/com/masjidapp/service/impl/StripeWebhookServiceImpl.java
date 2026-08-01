@@ -59,6 +59,20 @@ public class StripeWebhookServiceImpl {
         }
     }
 
+    /**
+     * Fired when a PaymentIntent is canceled — either manually via the API or automatically by
+     * Stripe after the customer abandons the payment (cancellation_reason: abandoned/expired).
+     * Moves the donation out of the pending state so records don't linger.
+     */
+    public void handlePaymentIntentCanceled(StripeObject stripeObject) {
+        PaymentIntent paymentIntent = (PaymentIntent) stripeObject;
+        String donationId = paymentIntent.getMetadata().get(DONATION_ID);
+        if (donationId != null) {
+            log.info("Payment canceled — donationId={} reason={}", donationId, paymentIntent.getCancellationReason());
+            donationService.updateDonationStatus(donationId);
+        }
+    }
+
     private void fetchAndStoreActualFee(PaymentIntent paymentIntent, String donationId) {
         try {
             String secretKey = settingsRepository.findAll().stream()

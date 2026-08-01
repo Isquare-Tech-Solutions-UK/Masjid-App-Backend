@@ -81,6 +81,9 @@ public class StripeWebhookController {
             case "payment_intent.payment_failed":
                 stripeWebhookServiceImpl.handlePaymentIntentFailed(stripeObject);
                 break;
+            case "payment_intent.canceled":
+                stripeWebhookServiceImpl.handlePaymentIntentCanceled(stripeObject);
+                break;
             default:
                 log.info("Unhandled event type: [{}]", event.getType());
         }

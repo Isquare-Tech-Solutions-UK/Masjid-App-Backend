@@ -9,7 +9,9 @@ import com.masjidapp.repository.CampaignRepository;
 import com.masjidapp.repository.DonationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,13 +30,20 @@ public class CampaignDonationQueryService {
     }
 
     public Page<DonationDto> getCampaignDonationSummary(UUID uuid, Pageable pageable) {
-        Page<Donation> donations = donationRepository.findByCampaignId(uuid, pageable);
+        Page<Donation> donations = donationRepository.findByCampaignId(uuid, newestFirst(pageable));
         return donations.map(DonationDto::toDto);
     }
 
     public Page<DonationDto> getCampaignActiveDonations(UUID id, Pageable pageable) {
-        return donationRepository.findByCampaignIdAndStatus(id, DonationStatus.completed, pageable)
-                .map(DonationDto::toDto);
+        // Member-facing list — anonymise donors who chose to donate anonymously.
+        return donationRepository.findByCampaignIdAndStatus(id, DonationStatus.completed, newestFirst(pageable))
+                .map(DonationDto::toPublicDto);
+    }
+
+    /** Force donation history to be sorted by creation date, newest first. */
+    private Pageable newestFirst(Pageable pageable) {
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
 }
