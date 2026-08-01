@@ -78,6 +78,15 @@ jobs:
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             export DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}
             export DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}
+            export MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
+            export MINIO_PUBLIC_URL=${{ secrets.MINIO_PUBLIC_URL }}
+            export MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
+            export MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
+            export MINIO_BUCKET=${{ secrets.MINIO_BUCKET }}
+            export MINIO_SECURE=${{ secrets.MINIO_SECURE }}
+            export JWT_SECRET=${{ secrets.JWT_SECRET }}
+            export MEMBER_API_KEY=${{ secrets.MEMBER_API_KEY }}
+            export FIREBASE_SERVICE_ACCOUNT_JSON=${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
             docker-compose -f docker-compose.prod.yml pull
             docker-compose -f docker-compose.prod.yml up -d
             docker image prune -f

@@ -9,6 +9,18 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
       - SERVER_PORT=8080
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_SECURE=${MINIO_SECURE}
+      - JWT_SECRET=${JWT_SECRET}
+      - MEMBER_API_KEY=${MEMBER_API_KEY}
+      - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
+      # Base64 256-bit AES key encrypting the charity's Stripe secret + webhook secret at rest.
+      # Must be a unique, non-committed value (ideally sourced from a secrets manager).
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
     ports:
       - "8080:8080"
     depends_on:

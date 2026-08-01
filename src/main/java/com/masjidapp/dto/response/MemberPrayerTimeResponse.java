@@ -38,6 +38,9 @@ public class MemberPrayerTimeResponse {
     @JsonProperty("hijriDate")
     private String hijriDate;
 
+    @JsonProperty("hijriDay")
+    private String hijriDay;
+
     @JsonProperty("prayers")
     private JsonNode prayers;
 
@@ -53,15 +56,26 @@ public class MemberPrayerTimeResponse {
     public static MemberPrayerTimeResponse fromEntity(PrayerTime prayerTime) {
         boolean isFriday = prayerTime.getDate().getDayOfWeek() == DayOfWeek.FRIDAY;
 
+        String rawHijri = prayerTime.getHijriDate();
+        String hijriDateVal = rawHijri;
+        String hijriDayVal = rawHijri;
+
+        if (rawHijri != null && rawHijri.contains(" ")) {
+            hijriDateVal = rawHijri.split(" ")[0];
+            hijriDayVal = rawHijri;
+        }
+
         return MemberPrayerTimeResponse.builder()
                 .date(prayerTime.getDate())
                 .dayName(prayerTime.getDate()
                         .getDayOfWeek()
                         .getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                .hijriDate(prayerTime.getHijriDate())
+                .hijriDate(hijriDateVal)
+                .hijriDay(hijriDayVal)
                 .prayers(prayerTime.getPrayers())
                 .jumuahTimes(isFriday ? prayerTime.getJumuahTimes() : null)
                 .build();
     }
 
 }
+

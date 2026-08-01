@@ -1,6 +1,7 @@
 package com.masjidapp.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,14 +9,17 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -141,6 +145,24 @@ public class GlobalExceptionHandler {
         }
 
         /**
+         * Handle invalid event state
+         */
+        @ExceptionHandler(InvalidEventStateException.class)
+        public ResponseEntity<ErrorResponse> handleInvalidEventState(InvalidEventStateException ex) {
+                log.warn("Invalid event state: {}", ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("INVALID_STATE")
+                                                .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
+        /**
          * Handle illegal argument / bad request errors
          */
         @ExceptionHandler(IllegalArgumentException.class)
@@ -151,6 +173,24 @@ public class GlobalExceptionHandler {
                                 .error(ErrorDetails.builder()
                                                 .code("BAD_REQUEST")
                                                 .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.badRequest().body(response);
+        }
+
+        /**
+         * Handle missing request parameters
+         */
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ErrorResponse> handleMissingParams(MissingServletRequestParameterException ex) {
+                log.warn("Missing parameter: {}", ex.getParameterName());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("BAD_REQUEST")
+                                                .message("Required request parameter '" + ex.getParameterName() + "' is missing")
                                                 .build())
                                 .meta(Meta.now())
                                 .build();
@@ -216,5 +256,44 @@ public class GlobalExceptionHandler {
                                         .build();
                 }
         }
+
+        /**
+         * Handle request not process exception
+         */
+        @ExceptionHandler(MARequestException.class)
+        public ResponseEntity<ErrorResponse> handleMARequest(MARequestException ex) {
+                log.warn("Request unable to processed : {}", ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("BAD_REQUEST")
+                                                .message(ex.getMessage())
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidEnum(HttpMessageNotReadableException ex) {
+
+        Throwable cause = ex.getCause();
+        ErrorResponse.ErrorResponseBuilder responseBuilder = ErrorResponse.builder().meta(Meta.now());
+        ErrorDetails.ErrorDetailsBuilder detailsBuilder = ErrorDetails.builder().code("BAD_REQUEST").message("Invalid request payload");
+        if (cause instanceof InvalidFormatException invalidFormatException &&
+                invalidFormatException.getTargetType().isEnum()) {
+
+            Class<?> enumClass = invalidFormatException.getTargetType();
+            String allowedValues = Arrays.toString(enumClass.getEnumConstants());
+
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Invalid value for enum");
+            error.put("allowedValues", allowedValues);
+            detailsBuilder.details(error);
+        }
+
+        return ResponseEntity.badRequest().body(responseBuilder.error(detailsBuilder.build()).build());
+    }
 
 }

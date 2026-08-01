@@ -1,6 +1,7 @@
 package com.masjidapp.service;
 
 import com.masjidapp.dto.request.CreateEventRequest;
+import com.masjidapp.dto.request.UpdateEventRequest;
 import com.masjidapp.dto.response.EventResponse;
 import com.masjidapp.entity.AdminUser;
 import org.springframework.data.domain.Page;
@@ -19,6 +20,30 @@ public interface EventService {
     EventResponse createEvent(CreateEventRequest request, List<MultipartFile> images, AdminUser createdBy);
 
     /**
+     * Update an existing event by ID.
+     * - Supports partial updates (only non-null fields are changed).
+     * - Handles optional image replacement.
+     * - Enforces business rules on status transitions.
+     */
+    EventResponse updateEvent(
+            UUID eventId,
+            UpdateEventRequest request,
+            List<MultipartFile> newImages,
+            AdminUser updatedBy,
+            String ipAddress,
+            String userAgent);
+
+    /**
+     * Delete a draft event.
+     */
+    void deleteEvent(UUID eventId, AdminUser deletedBy);
+
+    /**
+     * Change the status of an event.
+     */
+    EventResponse changeEventStatus(UUID eventId, String status, AdminUser updatedBy, String ipAddress, String userAgent);
+
+    /**
      * Get all paginated events with filters.
      * - Returns all events (no admin filtering).
      * - Supports status, upcoming/past, and date range filters.
@@ -29,6 +54,7 @@ public interface EventService {
             Boolean past,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            String search,
             Pageable pageable);
 
     /**
@@ -49,6 +75,14 @@ public interface EventService {
             LocalDateTime startDate,
             LocalDateTime endDate,
             Pageable pageable);
+
+    /**
+     * Send a push notification for a published event to all registered devices.
+     * - Can only notify published events.
+     * - Sets notification_sent = true and records notification_sent_at.
+     * - Returns the number of devices successfully notified.
+     */
+    int notifyEvent(UUID eventId);
 }
 
 

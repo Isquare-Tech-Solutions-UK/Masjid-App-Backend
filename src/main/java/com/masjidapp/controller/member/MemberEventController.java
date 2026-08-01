@@ -83,7 +83,7 @@ public class MemberEventController {
         log.info("Fetching member events - status={}, upcoming={}, past={}, startDate={}, endDate={}, page={}, size={}",
                 status, upcoming, past, startDate, endDate, page, size);
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<EventResponse> pageResult = eventService.getMemberEvents(
                 upcoming, past, startDate, endDate, pageable);
 

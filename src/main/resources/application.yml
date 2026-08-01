@@ -32,14 +32,6 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  cloud:
-    aws:
-      region:
-        static: ap-south-1
-      credentials:
-        access-key: ${AWS_ACCESS_KEY_ID}
-        secret-key: ${AWS_SECRET_ACCESS_KEY}
-
 management:
   endpoints:
     web:
@@ -69,9 +61,40 @@ logging:
     com.masjidapp: DEBUG
     org.springframework.security: DEBUG
 
+
+minio:
+  # Used by the MinIO SDK client for upload/download operations (may be a
+  # Docker-internal or otherwise backend-only reachable address).
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  # Used only to build the object URLs returned to clients (must be reachable
+  # from the browser/frontend). Falls back to minio.endpoint if not set.
+  public-url: ${MINIO_PUBLIC_URL:${MINIO_ENDPOINT:http://localhost:9000}}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:masjid-app}
+  secure: ${MINIO_SECURE:false}
+
 app:
   s3:
-    bucket-name: masjid-app-media
+    # Retained only so pre-migration image URLs stored in the DB can still be
+    # recognized and deleted; these are not used for new uploads.
+    legacy-bucket-name: ${AWS_LEGACY_BUCKET_NAME:masjid-app-media}
+    legacy-region: ${AWS_LEGACY_REGION:ap-south-1}
+  firebase:
+    service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
+
+  stripe:
+    # Estimate of Stripe's processing fee, used to gross up the charge (donor pays
+    # the fee so the charity nets the full donation). Not a platform fee.
+    fee-percent: ${STRIPE_FEE_PERCENT:0.015}
+    fee-fixed: ${STRIPE_FEE_FIXED:0.20}
+  encryption:
+    # Base64-encoded 256-bit AES key used to encrypt the charity's Stripe secret key
+    # and webhook signing secret at rest. MUST be overridden per environment and MUST
+    # NOT be reused across environments. The default below is DEV-ONLY — never use it
+    # in production; supply ENCRYPTION_MASTER_KEY from a secrets manager instead.
+    master-key: ${ENCRYPTION_MASTER_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
 member:
   api:
@@ -79,4 +102,15 @@ member:
 
 cors:
   allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+  api-docs:
+    path: /v3/api-docs
+  override-with-generic-response: false
 

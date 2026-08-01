@@ -54,14 +54,16 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/v3/api-docs")
+                                "/v3/api-docs",
+                                "/api-docs/**",
+                                "/api-docs")
                         .permitAll()
 
                         // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
                         .requestMatchers("/member/**").permitAll()
 
-                        // Webhook endpoints - Stripe signature verification (to be implemented)
-                        .requestMatchers("/webhooks/**").permitAll() // TODO: Add Stripe verification
+                        // Webhook endpoints - authenticated by Stripe signature (see StripeWebhookController), not JWT
+                        .requestMatchers("/webhooks/**").permitAll()
 
                         // All other admin endpoints require JWT authentication
                         .requestMatchers("/admin/**").authenticated()
