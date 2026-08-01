@@ -10,6 +10,7 @@ import java.util.UUID;
 public interface DonationService {
 
     Map<String, String> donateToCampaign(String campaignId, DonationCreateRequest donationCreateRequest);
+    DonationDto cancelPendingDonation(UUID donationId);
     DonationDto getDonationStatus(UUID donationId);
     void updateCampaignDonationStatus(String donationId, String campaignId, BigDecimal amount);
     void updateDonationStatus(String donationId);

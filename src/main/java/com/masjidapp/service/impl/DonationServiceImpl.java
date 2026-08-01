@@ -51,7 +51,6 @@ public class DonationServiceImpl implements DonationService {
                     .orElseThrow(() -> new ResourceNotFoundException("Campaign not found with id: " + campaignId));
             Donation donation = Donation.builder()
                     .donorName(donationCreateRequest.getDonorName())
-                    .donorEmail(donationCreateRequest.getDonorEmail())
                     .campaign(campaign)
                     .amount(donationCreateRequest.getAmount())
                     .processingFee(BigDecimal.ZERO)
@@ -134,6 +133,46 @@ public class DonationServiceImpl implements DonationService {
             donation.setCompletedAt(Instant.now());
             donation.setUpdatedAt(Instant.now());
         }
+    }
+
+    @Override
+    @Transactional
+    public DonationDto cancelPendingDonation(UUID donationId) {
+        Donation donation = donationRepository.findById(donationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Donation not found with id: " + donationId));
+
+        if (donation.getStatus() == DonationStatus.completed) {
+            throw new MARequestException("This donation has already been paid and cannot be canceled");
+        }
+        if (donation.getStatus() == DonationStatus.failed) {
+            return DonationDto.toDto(donation); // already terminal — idempotent
+        }
+
+        String paymentIntentId = donation.getStripePaymentIntentId();
+        if (paymentIntentId != null) {
+            String secretKey = settingsRepository.findAll().stream().findFirst()
+                    .map(MasjidSettings::getStripeSecretKey)
+                    .orElse(null);
+            if (secretKey != null) {
+                try {
+                    String piStatus = stripeService.cancelPaymentIntent(paymentIntentId, secretKey);
+                    if ("succeeded".equals(piStatus) || "processing".equals(piStatus)) {
+                        // Paid between create and cancel — don't fail it; let the succeeded webhook complete it.
+                        throw new MARequestException("This donation has already been paid and cannot be canceled");
+                    }
+                } catch (StripeException e) {
+                    log.error("Failed to cancel PaymentIntent {} for donation {}: {}",
+                            paymentIntentId, donationId, e.getMessage());
+                    throw new MARequestException("Could not cancel the donation with Stripe. Please try again.");
+                }
+            }
+        }
+
+        donation.setStatus(DonationStatus.failed);
+        donation.setCompletedAt(Instant.now());
+        donation.setUpdatedAt(Instant.now());
+        log.info("Donation canceled (abandoned): {}", donationId);
+        return DonationDto.toDto(donation);
     }
 
 }

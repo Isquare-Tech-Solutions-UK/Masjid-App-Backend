@@ -6,7 +6,6 @@ import com.masjidapp.dto.donation.DonationDto;
 import com.masjidapp.dto.response.ApiResponse;
 import com.masjidapp.service.DonationService;
 import com.masjidapp.service.impl.CampaignDonationQueryService;
-import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -63,10 +62,24 @@ public class DonationController {
         return ResponseEntity.ok(ApiResponse.success(donationService.donateToCampaign(campaignId, donationCreateRequest)));
     }
 
-    @Hidden
     @GetMapping("donations/{id}/status")
+    @Operation(
+            summary = "Get donation status",
+            description = "Returns a donation's current status (pending / completed / failed) and details. "
+                    + "The mobile app polls this after payment to confirm the donation was settled by the Stripe webhook."
+    )
     public ResponseEntity<ApiResponse<DonationDto>> getDonationStatus(@PathVariable("id") UUID donationId) {
         return ResponseEntity.ok(ApiResponse.success(donationService.getDonationStatus(donationId)));
+    }
+
+    @PostMapping("donations/{id}/cancel")
+    @Operation(
+            summary = "Cancel a pending donation",
+            description = "Cancels the PaymentIntent for an unpaid donation — e.g. the donor closed the app or "
+                    + "started over. No-op if already failed; rejected if the donation was already paid."
+    )
+    public ResponseEntity<ApiResponse<DonationDto>> cancelDonation(@PathVariable("id") UUID donationId) {
+        return ResponseEntity.ok(ApiResponse.success(donationService.cancelPendingDonation(donationId)));
     }
 
     @GetMapping("campaigns/{id}/donations")

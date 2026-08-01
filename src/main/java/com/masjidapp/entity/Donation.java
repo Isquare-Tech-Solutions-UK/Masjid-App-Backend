@@ -43,9 +43,6 @@ public class Donation {
     @Column(name = "donor_name", length = 100)
     private String donorName;
 
-    @Column(name = "donor_email", length = 255)
-    private String donorEmail;
-
     @Column(name = "is_anonymous")
     private boolean anonymous = false;
 

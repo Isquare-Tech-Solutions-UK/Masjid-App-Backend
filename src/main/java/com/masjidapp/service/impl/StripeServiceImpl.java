@@ -4,6 +4,7 @@ import com.masjidapp.config.StripeConfig;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
+import com.stripe.param.PaymentIntentCancelParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +46,12 @@ public class StripeServiceImpl {
         long amountInPence = totalCharged.multiply(new BigDecimal("100")).longValueExact();
 
         // Scope this API call to the charity's own secret key (thread-safe; no global Stripe.apiKey).
-        RequestOptions requestOptions = RequestOptions.builder().setApiKey(secretKey).build();
+        // Idempotency key (unique per donation) makes PaymentIntent creation safe to retry without
+        // creating duplicate intents — Stripe's recommended practice for all POST/creation calls.
+        RequestOptions requestOptions = RequestOptions.builder()
+                .setApiKey(secretKey)
+                .setIdempotencyKey("pi_donation_" + donationId)
+                .build();
 
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(amountInPence)
@@ -73,5 +79,28 @@ public class StripeServiceImpl {
         result.put("processingFee", processingFee.toString());
         result.put("totalCharged", totalCharged.toString());
         return result;
+    }
+
+    /**
+     * Cancels the PaymentIntent for an abandoned donation and returns its final status.
+     * If the PaymentIntent has already succeeded or is processing (the money moved), it is NOT
+     * canceled — the returned status lets the caller reconcile instead of wrongly failing a paid
+     * donation. Already-canceled intents are treated as a no-op.
+     */
+    public String cancelPaymentIntent(String paymentIntentId, String secretKey) throws StripeException {
+        RequestOptions requestOptions = RequestOptions.builder().setApiKey(secretKey).build();
+        PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId, requestOptions);
+        String status = paymentIntent.getStatus();
+
+        if ("succeeded".equals(status) || "processing".equals(status) || "canceled".equals(status)) {
+            return status; // terminal or in-flight — cannot / should not cancel
+        }
+
+        PaymentIntentCancelParams params = PaymentIntentCancelParams.builder()
+                .setCancellationReason(PaymentIntentCancelParams.CancellationReason.ABANDONED)
+                .build();
+        PaymentIntent canceled = paymentIntent.cancel(params, requestOptions);
+        log.info("PaymentIntent canceled: {} (status={})", canceled.getId(), canceled.getStatus());
+        return canceled.getStatus();
     }
 }
