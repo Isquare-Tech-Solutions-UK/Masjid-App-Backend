@@ -1,51 +1,189 @@
+# Single environment, single VPS — this is the only compose file for the app.
+#
+# Consolidated from the former docker-compose.dev.yml, which was the only
+# complete definition (the old prod file had no MinIO service and would have
+# started a broken backend).
+#
+# Secrets come from Infisical at deploy time; see the deploy workflow. Nothing
+# here has a secret default except the local-dev Postgres credentials.
+#
+# The logging stack (Loki/Alloy/Grafana) intentionally lives in its own file,
+# docker-compose.logging.yml, deployed to a separate directory. It must NOT be
+# merged here: this stack deploys with --remove-orphans, which would delete the
+# logging containers on every push. See docs/logging.md.
+
 services:
   app:
-    build: .
+    # Tag is overridable so the image stream can be renamed later without
+    # editing this file. The workflow currently pushes dev-latest.
+    image: ${DOCKER_USERNAME}/masjid-backend:${BACKEND_TAG:-dev-latest}
+    # Renamed from masjid-backend-dev — there is only one environment, so the
+    # suffix was misleading. Compose matches services by label, not by name, so
+    # the first deploy after this change replaces the old container cleanly.
+    # Volume keys below are NOT renamed; see the comment on db-data-dev.
     container_name: masjid-backend
     restart: always
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/masjid_app
       - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-postgres}
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      # Flyway owns the schema (spring.flyway.enabled=true), so `validate` is
+      # the correct long-term setting. Left as `update` because that is what the
+      # live database has been running under and the schema may have drifted —
+      # switching to validate could stop the app booting. Set DDL_AUTO=validate
+      # once you have confirmed the schema matches the migrations.
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=${DDL_AUTO:-update}
+      - SERVER_PORT=8080
+
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_SECURE=${MINIO_SECURE}
+
+      - JWT_SECRET=${JWT_SECRET}
+      - MEMBER_API_KEY=${MEMBER_API_KEY}
+      - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON}
+
+      # Charity's own Stripe keys are entered via the admin app and stored encrypted in the DB.
+      # This master key encrypts them at rest — supply a unique base64 256-bit AES key.
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+
+      - FRONTEND_URL=${FRONTEND_URL}
+
+      # Log verbosity, overridable from Infisical without rebuilding the image.
+      - LOG_LEVEL_ROOT=${LOG_LEVEL_ROOT:-INFO}
+      - LOG_LEVEL_APP=${LOG_LEVEL_APP:-INFO}
+      - LOG_LEVEL_SECURITY=${LOG_LEVEL_SECURITY:-WARN}
+
+    ports:
+      - "8080:8080"
+
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
     networks:
       - masjid-network
+
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/api/v1/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Caps the on-disk json-file buffer. Loki keeps the full history, so
+    # nothing is lost by rotating aggressively here.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: postgres:15-alpine
     container_name: masjid-db
     restart: always
+
     environment:
       - POSTGRES_DB=masjid_app
       - POSTGRES_USER=${DB_USERNAME:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
-    volumes:
-      - db-data:/var/lib/postgresql/data
+
     ports:
       - "5432:5432"
+
+    volumes:
+      # DO NOT RENAME. The live volume is <project>_db-data-dev; changing this
+      # key makes Compose create a fresh empty volume and the database will
+      # look wiped (the old data survives, but the app won't see it).
+      - db-data-dev:/var/lib/postgresql/data
+
     networks:
       - masjid-network
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  minio:
+    image: minio/minio:latest
+    container_name: masjid-minio
+    restart: always
+
+    command: server /data --console-address ":9001"
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    volumes:
+      # DO NOT RENAME — same reasoning as db-data-dev above. This holds every
+      # uploaded image.
+      - minio-data:/data
+
+    networks:
+      - masjid-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     image: nginx:alpine
     container_name: masjid-nginx
     restart: always
+
     ports:
       - "80:80"
       - "443:443"
+
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # nginx/conf.d/app.conf serves the ACME http-01 challenge from this path,
+      # but nothing was mounted there before, so webroot renewals would 404.
+      - ./certbot/www:/var/www/certbot:ro
+
     depends_on:
       - app
+
     networks:
       - masjid-network
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
-  db-data:
+  db-data-dev:
+  minio-data:
 
 networks:
   masjid-network:

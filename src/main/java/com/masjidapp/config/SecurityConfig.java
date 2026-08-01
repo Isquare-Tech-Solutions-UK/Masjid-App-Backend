@@ -121,6 +121,9 @@ public class SecurityConfig {
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
+        // Allowed headers cover the inbound direction; this makes the id the
+        // server actually used readable by the browser on cross-origin calls.
+        configuration.setExposedHeaders(List.of(RequestIdFilter.REQUEST_ID_HEADER));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

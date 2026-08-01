@@ -55,11 +55,23 @@ jwt:
   refresh-token-expiration: 604800000  # 7 days in milliseconds
 
 # Logging
+#
+# Logs go to stdout as JSON so Alloy can ship them to Loki with `level`,
+# `logger_name` and `requestId` as queryable fields. For readable output while
+# developing locally, set LOG_STRUCTURED_FORMAT to an empty value.
+#
+# Levels are env-driven so they can be raised temporarily via Infisical
+# without a code change or rebuild.
 logging:
+  structured:
+    format:
+      console: ${LOG_STRUCTURED_FORMAT:logstash}
   level:
-    root: INFO
-    com.masjidapp: DEBUG
-    org.springframework.security: DEBUG
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.masjidapp: ${LOG_LEVEL_APP:INFO}
+    # DEBUG here logs authentication internals, including token and header
+    # detail — keep it at WARN unless actively debugging an auth problem.
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
 
 
 minio:

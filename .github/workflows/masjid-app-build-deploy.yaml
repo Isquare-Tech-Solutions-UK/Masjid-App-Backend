@@ -78,7 +78,7 @@ jobs:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          source: "./docker-compose.dev.yml,./nginx/conf.d/app.conf"
+          source: "./docker-compose.yml,./nginx/conf.d/app.conf"
           target: "~/masjid-app"
 
       - name: Deploy to Server
@@ -97,8 +97,8 @@ jobs:
             export INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=${{ secrets.INFISICAL_CLIENT_SECRET }}
 
             infisical run --env=dev --command="
-              docker compose -f docker-compose.dev.yml pull &&
-              docker compose -f docker-compose.dev.yml up -d --force-recreate --remove-orphans
+              docker compose pull &&
+              docker compose up -d --force-recreate --remove-orphans
             "
 
             docker image prune -f

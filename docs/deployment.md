@@ -51,7 +51,7 @@ Ensure your EC2 instances have:
 
 1.  **Code Changes**: Push code to `dev` or `main`.
 2.  **Build**: GitHub Actions builds the Docker image and pushes it to Docker Hub with tag `dev-latest`.
-3.  **Deploy**: GitHub Actions connects to EC2, copies `docker-compose.dev.yml`, and restarts the application.
+3.  **Deploy**: GitHub Actions connects to the VPS, copies `docker-compose.yml`, and restarts the application. Secrets are injected at deploy time by `infisical run`.
 4.  **Verification**: The application exposes a health check endpoint at `/api/v1/actuator/health`.
 
 ## Directory Structure on EC2
