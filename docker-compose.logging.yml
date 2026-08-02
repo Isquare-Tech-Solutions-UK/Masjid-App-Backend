@@ -69,9 +69,10 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_ANALYTICS_REPORTING_ENABLED=false
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
-      # Served behind nginx at https://<domain>/logs/
-      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-https://masjid-app.isquaretechsolutions.com/logs/}
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Served behind nginx on its own subdomain, so Grafana sits at the root
+      # and GF_SERVER_SERVE_FROM_SUB_PATH is no longer set (it must not be,
+      # or Grafana would expect a /logs/ prefix that nginx no longer adds).
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-https://logs.masjid-app.isquaretechsolutions.com}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./logging/grafana/provisioning:/etc/grafana/provisioning:ro

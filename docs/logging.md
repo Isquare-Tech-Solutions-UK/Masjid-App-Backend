@@ -7,7 +7,7 @@ collected into one searchable place.
 | --- | --- |
 | **Alloy** | Reads the Docker socket and tails every container. No per-service config. |
 | **Loki** | Stores the logs. Indexes labels only, so it stays small. |
-| **Grafana** | Query UI at `https://masjid-app.isquaretechsolutions.com/logs/` |
+| **Grafana** | Query UI at `https://logs.masjid-app.isquaretechsolutions.com` |
 
 Total footprint is roughly 300–400 MB RAM. Promtail — which most tutorials still
 reference — is deprecated (EOL March 2026); Alloy is its replacement.
@@ -36,7 +36,7 @@ cat > .env <<'EOF'
 MASJID_NETWORK=masjid-app_masjid-network
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=<pick-a-strong-password>
-GRAFANA_ROOT_URL=https://masjid-app.isquaretechsolutions.com/logs/
+GRAFANA_ROOT_URL=https://logs.masjid-app.isquaretechsolutions.com
 EOF
 chmod 600 .env
 
@@ -51,7 +51,7 @@ that's the first thing to check on failure.
 This is deployed **once**. It is not part of the app's build-and-deploy
 workflow, so pushes to `main` leave it running untouched.
 
-Once it's up, redeploy the backend so nginx picks up the new `/logs/` route and
+Once it is up, redeploy the backend so nginx picks up the logs.* server block and
 the backend starts emitting JSON.
 
 ## Querying

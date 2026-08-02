@@ -58,7 +58,10 @@ services:
       - LOG_LEVEL_SECURITY=${LOG_LEVEL_SECURITY:-WARN}
 
     ports:
-      - "8080:8080"
+      # Loopback only: nginx reaches this as app:8080 over masjid-network, and
+      # the public route is https://api.masjid-app.isquaretechsolutions.com.
+      # Kept bound locally so you can still curl it over an SSH tunnel.
+      - "127.0.0.1:8080:8080"
 
     depends_on:
       db:
@@ -95,7 +98,12 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
 
     ports:
-      - "5432:5432"
+      # Loopback only. This was listening on 0.0.0.0 — i.e. the database was
+      # reachable from the public internet, guarded by nothing but the
+      # password. Note Docker's published ports bypass ufw, so a firewall rule
+      # was not protecting it. Reach it with:
+      #   ssh -L 5432:127.0.0.1:5432 <user>@<host>
+      - "127.0.0.1:5432:5432"
 
     volumes:
       # DO NOT RENAME. The live volume is <project>_db-data-dev; changing this
@@ -130,8 +138,10 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
 
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      # Loopback only: nginx serves the S3 API at s3.* and the console at
+      # console.*, reaching this container over masjid-network.
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
 
     volumes:
       # DO NOT RENAME — same reasoning as db-data-dev above. This holds every
@@ -161,6 +171,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
+
+    # Lets nginx reach services that live in other compose projects (the
+    # frontend on :3000, Infisical on :8088) without hairpinning out to the
+    # public IP. Everything in THIS project is reached by container name.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
