@@ -1,0 +1,17 @@
+# Auto-provisions the Loki datasource so Grafana is usable on first boot
+# with no manual clicking.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: masjid-loki
+    url: http://masjid-loki:3100
+    isDefault: true
+    editable: false
+    jsonData:
+      # Grafana's own client-side cap. Explore's "Line limit" box defaults
+      # to 1000, which is the other place long queries get truncated.
+      maxLines: 5000
+      timeout: 300

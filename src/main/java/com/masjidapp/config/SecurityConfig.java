@@ -113,14 +113,21 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // The API now lives on its own subdomain, so calls from the frontend are
+        // cross-origin and CORS actually applies — previously they were
+        // same-origin (/api/ on the same host) and this list was never
+        // exercised in production.
         configuration.setAllowedOriginPatterns(List.of(
+                "https://masjid-app.isquaretechsolutions.com",
                 "http://localhost:3000",
-                "https://3.6.40.125.nip.io",
                 "https://masjid-app.vercel.app",
                 "https://*.vercel.app" // Allows Vercel preview deployments
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
+        // Allowed headers cover the inbound direction; this makes the id the
+        // server actually used readable by the browser on cross-origin calls.
+        configuration.setExposedHeaders(List.of(RequestIdFilter.REQUEST_ID_HEADER));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
