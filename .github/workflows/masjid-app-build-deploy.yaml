@@ -6,17 +6,11 @@ on:
       - dev
       - main
 
+  # No environment input: there is one environment on one VPS. The previous
+  # dev/staging/prod dropdown was decorative — the deploy always used
+  # DEV_EC2_HOST and --env=dev regardless of the selection, which is how
+  # someone eventually ships to what they think is staging.
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select deployment environment"
-        required: true
-        default: "dev"
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
 
 jobs:
   build:
@@ -43,12 +37,18 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # Two tags: dev-latest is the moving pointer the VPS pulls by default, and
+      # the commit SHA is immutable. Without the SHA tag there is no way back to
+      # a known-good build — dev-latest is overwritten by the next push.
+      # To roll back: set BACKEND_TAG=<sha> in Infisical and redeploy.
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/masjid-backend:dev-latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/masjid-backend:dev-latest
+            ${{ secrets.DOCKER_USERNAME }}/masjid-backend:${{ github.sha }}
 
   deploy:
     needs: build
@@ -59,21 +59,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Display Selected Environment
-        run: |
-          echo "Environment = ${{ github.event.inputs.environment }}"
-
       - name: Create application directory
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
-            mkdir -p ~/masjid-app/nginx/conf.d
+            mkdir -p ~/masjid-app/nginx/conf.d ~/masjid-app/scripts/tls
 
       - name: Copy docker-compose and nginx config
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
@@ -86,7 +82,7 @@ jobs:
       # certificates on disk and nginx keeps serving the old ones from memory
       # until they expire.
       - name: Converge certbot deploy hook
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
@@ -101,17 +97,31 @@ jobs:
             ls -l /etc/letsencrypt/renewal-hooks/deploy/
 
       - name: Deploy to Server
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
+            # Without set -e the script continues past a failed compose command
+            # and exits with the status of `docker image prune` — which always
+            # succeeds. A broken deploy would then be reported as green.
+            set -eu
+
             cd ~/masjid-app
 
             export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
 
-            export INFISICAL_DOMAIN=http://72.62.6.65:8088
+            # Secrets are fetched over this URL, so it should be HTTPS. It is a
+            # repository secret rather than a literal so it can move without a
+            # code change — the fallback preserves current behaviour.
+            #
+            # Set INFISICAL_DOMAIN to
+            #   https://vault.masjid-app.isquaretechsolutions.com
+            # AFTER scripts/tls/setup-tls.sh has expanded the certificate to
+            # cover that hostname. Switching before then makes the Infisical CLI
+            # reject an untrusted certificate and every deploy fails.
+            export INFISICAL_DOMAIN=${{ secrets.INFISICAL_DOMAIN || 'http://72.62.6.65:8088' }}
             export INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=${{ secrets.INFISICAL_CLIENT_ID }}
             export INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=${{ secrets.INFISICAL_CLIENT_SECRET }}
 
@@ -121,3 +131,40 @@ jobs:
             "
 
             docker image prune -f
+
+      # A green deploy previously meant only "the commands ran". It now means
+      # the backend actually came up and nginx is serving, so a broken release
+      # fails the pipeline instead of passing silently.
+      - name: Verify deployment health
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: |
+            set -eu
+            cd ~/masjid-app
+
+            # nginx is the single front door — if it is crash-looping, every
+            # service is unreachable regardless of the backend's state.
+            if [ "$(docker inspect -f '{{.State.Running}}' masjid-nginx 2>/dev/null || echo false)" != "true" ]; then
+              echo "FAIL: masjid-nginx is not running"
+              docker logs masjid-nginx --tail 40 2>&1 || true
+              exit 1
+            fi
+            echo "ok: nginx running"
+
+            for i in $(seq 1 30); do
+              STATUS="$(docker inspect -f '{{.State.Health.Status}}' masjid-backend 2>/dev/null || echo unknown)"
+              if [ "$STATUS" = "healthy" ]; then
+                echo "ok: backend healthy"
+                docker compose ps
+                exit 0
+              fi
+              echo "  backend status=$STATUS (attempt $i/30)"
+              sleep 5
+            done
+
+            echo "FAIL: backend did not become healthy within 150s"
+            docker compose logs --tail=80 app
+            exit 1
