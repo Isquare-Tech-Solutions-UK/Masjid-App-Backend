@@ -12,47 +12,51 @@ collected into one searchable place.
 Total footprint is roughly 300–400 MB RAM. Promtail — which most tutorials still
 reference — is deprecated (EOL March 2026); Alloy is its replacement.
 
-## One-time setup on the VPS
+## Deployment
 
-The logging stack lives in its **own** compose project, deliberately separate
-from `~/masjid-app`. The app deploy runs `--remove-orphans`, which would delete
-these containers if they shared a project name.
+The CI workflow deploys this alongside the app — there is no manual setup step.
+It runs from `~/masjid-app` as a **separate compose project**:
 
 ```bash
-# 1. Confirm the app network's real name
-docker network ls | grep masjid
-#    e.g. masjid-app_masjid-network
-
-# 2. Create the logging directory
-mkdir -p ~/masjid-logging
-
-# 3. Copy from the repo checkout (or scp from your machine)
-cp docker-compose.logging.yml ~/masjid-logging/
-cp -r logging ~/masjid-logging/
-
-# 4. Configure
-cd ~/masjid-logging
-cat > .env <<'EOF'
-MASJID_NETWORK=masjid-app_masjid-network
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=<pick-a-strong-password>
-GRAFANA_ROOT_URL=https://logs.masjid-app.isquaretechsolutions.com
-EOF
-chmod 600 .env
-
-# 5. Start
-docker compose -f docker-compose.logging.yml up -d
-docker compose -f docker-compose.logging.yml ps
+docker compose -p masjid-logging -f docker-compose.logging.yml up -d
 ```
 
-If `MASJID_NETWORK` doesn't match step 1's output, the stack won't start —
-that's the first thing to check on failure.
+The explicit `-p` is load-bearing. The app deploy runs `--remove-orphans`, which
+removes containers labelled with the `masjid-app` project; these carry
+`masjid-logging`, so they are untouched. **Never run this file without `-p`** —
+the next app deploy would delete the entire stack.
 
-This is deployed **once**. It is not part of the app's build-and-deploy
-workflow, so pushes to `main` leave it running untouched.
+It is also brought up *without* `--force-recreate`, so Compose only touches
+services whose definition changed. Routine app deploys leave Loki, Alloy and
+Grafana running and ingesting.
 
-Once it is up, redeploy the backend so nginx picks up the logs.* server block and
-the backend starts emitting JSON.
+### Required secret
+
+Add to Infisical:
+
+| Variable | Value |
+| --- | --- |
+| `GRAFANA_ADMIN_PASSWORD` | a strong password |
+
+The deploy step fails with a clear message if it is missing, rather than
+starting Grafana with a blank admin password and leaving the dashboard open.
+
+`GRAFANA_ADMIN_USER`, `GRAFANA_ROOT_URL` and `MASJID_NETWORK` all have working
+defaults in `docker-compose.logging.yml`; override them in Infisical only if
+they need to change.
+
+### If the deploy fails on the network check
+
+The stack joins the app's network as `external` so nginx can reach Grafana by
+container name. That network is named after the app's compose project, which
+Compose derives from its directory — `~/masjid-app` gives
+`masjid-app_masjid-network`. Confirm with:
+
+```bash
+docker network ls | grep masjid
+```
+
+If it differs, set `MASJID_NETWORK` in Infisical to the real name.
 
 ## Querying
 

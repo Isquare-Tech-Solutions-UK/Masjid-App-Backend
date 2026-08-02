@@ -1,8 +1,16 @@
 # Centralised logging stack: Loki (storage) + Alloy (collection) + Grafana (UI).
 #
-# Deployed to ~/masjid-logging on the VPS, i.e. a SEPARATE compose project from
-# the app. That matters: the app deploy runs `--remove-orphans`, which would
-# delete these containers if they shared a project name.
+# Deployed by the CI workflow from ~/masjid-app as a SEPARATE compose project:
+#
+#   docker compose -p masjid-logging -f docker-compose.logging.yml up -d
+#
+# The explicit -p is what makes this safe. The app deploy runs
+# --remove-orphans, which removes containers labelled with the masjid-app
+# project; these carry masjid-logging instead, so they survive untouched. Do NOT
+# run this file without -p, or the next app deploy will delete the whole stack.
+#
+# It is also brought up WITHOUT --force-recreate, so ordinary app deploys leave
+# these containers running and ingesting rather than restarting them.
 #
 # Alloy reads the Docker socket directly, so it collects logs from every
 # container on the host regardless of which project or network they belong to.

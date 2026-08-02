@@ -66,7 +66,9 @@ jobs:
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
-            mkdir -p ~/masjid-app/nginx/conf.d ~/masjid-app/scripts/tls
+            mkdir -p ~/masjid-app/nginx/conf.d \
+                     ~/masjid-app/scripts/tls \
+                     ~/masjid-app/logging/grafana/provisioning/datasources
 
       - name: Copy docker-compose and nginx config
         uses: appleboy/scp-action@v1.0.0
@@ -74,7 +76,7 @@ jobs:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          source: "./docker-compose.yml,./nginx/conf.d/app.conf,./scripts/tls/certbot-deploy-hook.sh,./scripts/tls/setup-tls.sh,./scripts/tls/domains.conf"
+          source: "./docker-compose.yml,./docker-compose.logging.yml,./nginx/conf.d/app.conf,./logging/loki-config.yml,./logging/config.alloy,./logging/grafana/provisioning/datasources/loki.yml,./scripts/tls/certbot-deploy-hook.sh,./scripts/tls/setup-tls.sh,./scripts/tls/domains.conf"
           target: "~/masjid-app"
 
       # Re-installed every deploy so the hook is versioned in git rather than
@@ -168,3 +170,67 @@ jobs:
             echo "FAIL: backend did not become healthy within 150s"
             docker compose logs --tail=80 app
             exit 1
+
+      # Deployed as a SEPARATE compose project (-p masjid-logging) from the same
+      # directory. That is what keeps it safe from the app deploy's
+      # --remove-orphans, which only removes containers labelled with the
+      # masjid-app project.
+      #
+      # Deliberately `up -d` without --force-recreate: Compose then only touches
+      # services whose definition changed, so ordinary app deploys leave Loki,
+      # Alloy and Grafana running and keep ingesting.
+      - name: Deploy logging stack
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: |
+            set -eu
+            cd ~/masjid-app
+
+            export INFISICAL_DOMAIN=${{ secrets.INFISICAL_DOMAIN || 'http://72.62.6.65:8088' }}
+            export INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=${{ secrets.INFISICAL_CLIENT_ID }}
+            export INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=${{ secrets.INFISICAL_CLIENT_SECRET }}
+
+            # The app stack's network must exist first — the logging stack joins
+            # it as external so nginx can reach Grafana by container name.
+            NET="$(docker network ls --format '{{.Name}}' | grep -x 'masjid-app_masjid-network' || true)"
+            if [ -z "$NET" ]; then
+              echo "FAIL: expected network masjid-app_masjid-network not found. Available:"
+              docker network ls --format '  {{.Name}}' | grep masjid || true
+              exit 1
+            fi
+
+            # Grafana refuses to start with an empty admin password, and a
+            # blank one would otherwise be a silently world-open dashboard.
+            infisical run --env=dev --command='
+              if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
+                echo "FAIL: GRAFANA_ADMIN_PASSWORD is not set in Infisical";
+                exit 1;
+              fi;
+              docker compose -p masjid-logging -f docker-compose.logging.yml pull &&
+              docker compose -p masjid-logging -f docker-compose.logging.yml up -d
+            '
+
+            docker compose -p masjid-logging -f docker-compose.logging.yml ps
+
+      # Non-blocking on purpose: logs going missing is bad, but it must never
+      # fail a release of the donation app itself.
+      - name: Verify logging stack
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: |
+            set -u
+            for c in masjid-loki masjid-alloy masjid-grafana; do
+              printf '  %-16s %s\n' "$c" \
+                "$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)"
+            done
+            echo "  loki ready: $(docker exec masjid-loki wget -qO- http://localhost:3100/ready 2>/dev/null || echo 'not ready')"
+            echo "  containers Alloy is collecting:"
+            docker exec masjid-loki wget -qO- 'http://localhost:3100/loki/api/v1/label/container/values' 2>/dev/null | head -c 400 || true
+            echo
