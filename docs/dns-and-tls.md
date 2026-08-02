@@ -42,29 +42,63 @@ for h in api logs vault s3 console; do
 done
 ```
 
-## Step 2 — Expand the certificate
+## Step 2 — Converge TLS
 
-All nginx blocks deliberately point at the **existing** certificate path, so
-nginx starts fine before this runs. Until you expand, the new subdomains serve
-a certificate that does not list them and browsers will warn. Nothing is
-broken; the warning goes away after this.
+One command, run on the VPS as root:
 
 ```bash
-sudo certbot certonly --webroot -w ~/masjid-app/certbot/www \
-  -d masjid-app.isquaretechsolutions.com \
-  -d api.masjid-app.isquaretechsolutions.com \
-  -d logs.masjid-app.isquaretechsolutions.com \
-  -d vault.masjid-app.isquaretechsolutions.com \
-  -d s3.masjid-app.isquaretechsolutions.com \
-  -d console.masjid-app.isquaretechsolutions.com \
-  --expand
-
-docker compose -f ~/masjid-app/docker-compose.yml exec nginx nginx -s reload
+sudo ~/masjid-app/scripts/tls/setup-tls.sh
 ```
 
-One certificate carries every hostname as a SAN, which is why all the server
-blocks can share a path. Keep the domain list in this order — certbot names the
-directory after the first `-d`, and the paths in `app.conf` depend on it.
+It is idempotent — safe to re-run, and does nothing when the certificate
+already covers the declared hostnames. That matters: Let's Encrypt allows only
+5 duplicate certificates per week, so a script that reissued on every run would
+exhaust the limit and block real renewals.
+
+What it does:
+
+1. Creates the ACME webroot
+2. **Checks DNS resolves first** — a failed validation counts against the rate
+   limit, so it refuses to call certbot until every hostname resolves
+3. Installs the certbot deploy hook
+4. Compares the certificate's current SANs against `domains.conf` and issues or
+   expands only if they differ
+5. Verifies the certificate actually being *served* covers every hostname —
+   catching the case where certbot succeeded but nginx never reloaded
+6. Runs `certbot renew --dry-run` to prove the renewal path works end to end
+7. Confirms a renewal timer or cron job exists
+
+All nginx blocks deliberately point at the **same** certificate path, so nginx
+starts fine before this runs. Until it does, the new subdomains serve a
+certificate that does not list them and browsers warn. Nothing is broken; the
+warning clears once this completes.
+
+### Adding a subdomain later
+
+1. Create the DNS A record — see [godaddy-dns-setup.md](./godaddy-dns-setup.md)
+2. Add the hostname to `scripts/tls/domains.conf`
+3. Add a `server` block to `nginx/conf.d/app.conf`
+4. Deploy, then re-run `setup-tls.sh` — it detects the new name and expands
+
+`PRIMARY` in `domains.conf` must not change. Certbot names the lineage directory
+after it and every `ssl_certificate` path depends on that name.
+
+### Why renewal needs a hook
+
+nginx reads certificates into memory at startup. Certbot renewing them on disk
+changes nothing until nginx reloads — so without
+`/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`, renewals succeed
+silently and nginx keeps serving the old certificate until it expires.
+
+The hook lives in the repo at `scripts/tls/certbot-deploy-hook.sh` and is
+re-installed by **every deploy**, so it cannot drift or disappear if the box is
+rebuilt. It validates the config with `nginx -t` before reloading, and treats a
+stopped nginx as a non-error — the renewal itself still succeeded, and nginx
+picks up the new certificate whenever it next starts.
+
+Renewal scheduling is left to certbot's own systemd timer. It is deliberately
+not driven from CI: a deploy should not depend on Let's Encrypt being
+reachable.
 
 ## Step 3 — Update Infisical
 

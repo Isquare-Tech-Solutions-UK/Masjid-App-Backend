@@ -78,8 +78,27 @@ jobs:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USERNAME }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          source: "./docker-compose.yml,./nginx/conf.d/app.conf"
+          source: "./docker-compose.yml,./nginx/conf.d/app.conf,./scripts/tls/certbot-deploy-hook.sh,./scripts/tls/setup-tls.sh,./scripts/tls/domains.conf"
           target: "~/masjid-app"
+
+      # Re-installed every deploy so the hook is versioned in git rather than
+      # being a file that only exists on the box. Without it, certbot renews
+      # certificates on disk and nginx keeps serving the old ones from memory
+      # until they expire.
+      - name: Converge certbot deploy hook
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: |
+            set -e
+            install -d /etc/letsencrypt/renewal-hooks/deploy
+            install -m 0755 ~/masjid-app/scripts/tls/certbot-deploy-hook.sh \
+                            /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+            chmod +x ~/masjid-app/scripts/tls/setup-tls.sh
+            echo "deploy hook installed:"
+            ls -l /etc/letsencrypt/renewal-hooks/deploy/
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
