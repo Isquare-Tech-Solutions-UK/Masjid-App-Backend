@@ -11,6 +11,7 @@ import com.masjidapp.dto.response.PrayerTimeResponse;
 import com.masjidapp.entity.PrayerTime;
 import com.masjidapp.exception.ResourceNotFoundException;
 import com.masjidapp.repository.PrayerTimeRepository;
+import com.masjidapp.service.FcmService;
 import com.masjidapp.service.PrayerTimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +27,10 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,7 @@ import java.util.stream.Collectors;
 public class PrayerTimeServiceImpl implements PrayerTimeService {
 
     private final PrayerTimeRepository prayerTimeRepository;
+    private final FcmService fcmService;
 
     /**
      * Ordered list of prayer names to iterate when computing nextPrayer.
@@ -45,6 +49,8 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
     private static final String[] PRAYER_ORDER = {"fajr", "sunrise", "zuhr", "asr", "maghrib", "isha"};
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
+    private static final DateTimeFormatter MONTH_FORMAT = DateTimeFormatter.ofPattern("MMMM yyyy");
 
     // ============================================
     // Admin methods
@@ -98,6 +104,8 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
         PrayerTime saved = prayerTimeRepository.save(prayerTime);
         log.info("Created prayer time for date: {}", date);
 
+        notifyPrayerUpdate(date);
+
         return PrayerTimeResponse.fromEntity(saved);
     }
 
@@ -109,6 +117,7 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
         int created = 0;
         int updated = 0;
         int failed = 0;
+        Set<YearMonth> affectedMonths = new LinkedHashSet<>();
 
         for (CreatePrayerTimeRequest entry : request.getPrayerTimes()) {
             try {
@@ -134,6 +143,7 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
                     prayerTimeRepository.save(prayerTime);
                     created++;
                 }
+                affectedMonths.add(YearMonth.from(date));
             } catch (Exception e) {
                 log.warn("Failed to process prayer time entry for date: {} — {}", entry.getDate(), e.getMessage());
                 failed++;
@@ -141,6 +151,8 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
         }
 
         log.info("Bulk prayer time result — created: {}, updated: {}, failed: {}", created, updated, failed);
+
+        affectedMonths.forEach(this::notifyPrayerUpdate);
 
         return BulkPrayerTimeResult.builder()
                 .created(created)
@@ -170,6 +182,8 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
 
         PrayerTime saved = prayerTimeRepository.save(prayerTime);
         log.info("Updated prayer time for date: {}", saved.getDate());
+
+        notifyPrayerUpdate(saved.getDate());
 
         return PrayerTimeResponse.fromEntity(saved);
     }
@@ -248,6 +262,25 @@ public class PrayerTimeServiceImpl implements PrayerTimeService {
     // ============================================
     // Private helpers
     // ============================================
+
+    /**
+     * Send an FCM "prayer-updates" topic notification for the month containing the given date.
+     */
+    private void notifyPrayerUpdate(LocalDate date) {
+        notifyPrayerUpdate(YearMonth.from(date));
+    }
+
+    /**
+     * Send an FCM "prayer-updates" topic notification for the given month.
+     * Firebase errors are logged but never propagated so they can't break the prayer update operation.
+     */
+    private void notifyPrayerUpdate(YearMonth month) {
+        try {
+            fcmService.sendPrayerUpdate(MONTH_FORMAT.format(month));
+        } catch (Exception e) {
+            log.error("Failed to send prayer update notification for month: {}, error={}", month, e.getMessage(), e);
+        }
+    }
 
     /**
      * Parse date string to LocalDate
