@@ -28,6 +28,9 @@ logs/
 src/main/resources/secret.key
 src/main/resources/raw.key
 
+# Firebase service account credentials — never commit these
+src/main/resources/firebase/
+
 # Maven
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

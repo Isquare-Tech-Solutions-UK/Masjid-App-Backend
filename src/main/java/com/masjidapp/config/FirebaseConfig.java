@@ -11,7 +11,11 @@ import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Configuration
 @Slf4j
@@ -20,25 +24,23 @@ public class FirebaseConfig {
     @Value("${app.firebase.service-account-json:}")
     private String serviceAccountJson;
 
+    @Value("${app.firebase.service-account-file:firebase/firebase-service-account.json}")
+    private String serviceAccountFile;
+
     @PostConstruct
     public void initializeFirebase() {
-        if (!StringUtils.hasText(serviceAccountJson)) {
-            log.warn("Firebase not initialized: FIREBASE_SERVICE_ACCOUNT_JSON is not set. " +
-                    "Push notifications will be disabled.");
-            return;
-        }
-
         if (!FirebaseApp.getApps().isEmpty()) {
             log.info("Firebase already initialized.");
             return;
         }
 
         try {
-            ByteArrayInputStream serviceAccountStream = new ByteArrayInputStream(
-                    serviceAccountJson.getBytes(StandardCharsets.UTF_8));
-
-            GoogleCredentials credentials = GoogleCredentials
-                    .fromStream(serviceAccountStream);
+            GoogleCredentials credentials = loadCredentials();
+            if (credentials == null) {
+                log.warn("Firebase not initialized: no credentials found in FIREBASE_SERVICE_ACCOUNT_JSON " +
+                        "or file '{}'. Push notifications will be disabled.", serviceAccountFile);
+                return;
+            }
 
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(credentials)
@@ -50,6 +52,31 @@ public class FirebaseConfig {
         } catch (IOException e) {
             log.error("Failed to initialize Firebase: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initialize Firebase Admin SDK", e);
+        }
+    }
+
+    /**
+     * Prefers FIREBASE_SERVICE_ACCOUNT_JSON (used in deployed environments via
+     * Infisical) so that path is unaffected. Falls back to a local credentials
+     * file for environments where the JSON was dropped on disk instead — a
+     * missing or unreadable file is treated the same as "not configured"
+     * rather than failing startup, since deploy never ships this file.
+     */
+    private GoogleCredentials loadCredentials() throws IOException {
+        if (StringUtils.hasText(serviceAccountJson)) {
+            log.info("Loading Firebase credentials from FIREBASE_SERVICE_ACCOUNT_JSON.");
+            return GoogleCredentials.fromStream(
+                    new ByteArrayInputStream(serviceAccountJson.getBytes(StandardCharsets.UTF_8)));
+        }
+
+        Path path = Paths.get(serviceAccountFile);
+        if (!Files.isRegularFile(path)) {
+            return null;
+        }
+
+        log.info("Loading Firebase credentials from file '{}'.", path.toAbsolutePath());
+        try (InputStream in = Files.newInputStream(path)) {
+            return GoogleCredentials.fromStream(in);
         }
     }
 }

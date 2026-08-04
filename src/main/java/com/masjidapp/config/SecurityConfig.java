@@ -56,7 +56,15 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs",
                                 "/api-docs/**",
-                                "/api-docs")
+                                "/api-docs",
+                                // TODO (PRODUCTION SECURITY): public ONLY for development/testing of a
+                                // browser-based FCM receiver (NotificationSubscriptionController). Before
+                                // production, do at least one of: require authentication on these routes,
+                                // restrict "topic" to an allow-list (e.g. prayer-updates) instead of
+                                // accepting any client-supplied topic, or protect with a dedicated API key.
+                                // Do not allow arbitrary topic subscriptions in production.
+                                "/notifications/subscribe",
+                                "/notifications/unsubscribe")
                         .permitAll()
 
                         // Member endpoints - API Key authentication (handled by MemberApiKeyFilter)
@@ -120,6 +128,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(
                 "https://masjid-app.isquaretechsolutions.com",
                 "http://localhost:3000",
+                "http://localhost:3001", // Masjid-Notify-Web (dev) — run alongside Admin Web on 3000
                 "https://masjid-app.vercel.app",
                 "https://*.vercel.app" // Allows Vercel preview deployments
         ));
