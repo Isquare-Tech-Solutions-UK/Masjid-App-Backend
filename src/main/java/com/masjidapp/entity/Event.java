@@ -52,6 +52,9 @@ public class Event {
     @Column(name = "date", nullable = false)
     private LocalDateTime date;
 
+    @Column(name = "end_date")
+    private LocalDateTime endDate;
+
     @Column(length = 500)
     private String link;
 

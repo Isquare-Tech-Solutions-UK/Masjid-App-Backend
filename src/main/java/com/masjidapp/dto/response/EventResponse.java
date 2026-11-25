@@ -30,6 +30,10 @@ public class EventResponse {
     @JsonProperty("date")
     private LocalDateTime date;
 
+    /** Null for events without an end time. */
+    @JsonProperty("endDate")
+    private LocalDateTime endDate;
+
     @JsonProperty("link")
     private String link;
 
@@ -72,6 +76,7 @@ public class EventResponse {
                 .title(event.getTitle())
                 .speaker(event.getSpeaker())
                 .date(event.getDate())
+                .endDate(event.getEndDate())
                 .link(event.getLink())
                 .images(event.getImages())
                 .description(event.getDescription())
