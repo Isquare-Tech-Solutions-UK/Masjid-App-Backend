@@ -52,6 +52,9 @@ public class Event {
     @Column(name = "date", nullable = false)
     private LocalDateTime date;
 
+    @Column(name = "end_date")
+    private LocalDateTime endDate;
+
     @Column(length = 500)
     private String link;
 
@@ -65,7 +68,7 @@ public class Event {
     @Builder.Default
     private List<String> images = new ArrayList<>();
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "text")
     private String description;
 
     @Column(nullable = false, length = 255)

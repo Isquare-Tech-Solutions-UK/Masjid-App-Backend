@@ -55,6 +55,7 @@ public class AuditLogServiceImpl implements AuditLogService {
         map.put("title", event.getTitle());
         map.put("speaker", event.getSpeaker());
         map.put("date", event.getDate());
+        map.put("endDate", event.getEndDate());
         map.put("link", event.getLink());
         map.put("images", event.getImages());
         map.put("description", event.getDescription());

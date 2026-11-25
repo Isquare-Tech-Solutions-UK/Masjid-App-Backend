@@ -13,7 +13,10 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -55,6 +58,18 @@ public class AdminEventController {
 
         private final EventService eventService;
         private final AuthRequestContainer authRequestContainer;
+        private final Validator validator;
+
+        /**
+         * The event DTOs are built by hand from multipart params, so Spring never
+         * runs their constraints. Validate explicitly; violations become a 400.
+         */
+        private <T> void validate(T request) {
+                java.util.Set<ConstraintViolation<T>> violations = validator.validate(request);
+                if (!violations.isEmpty()) {
+                        throw new ConstraintViolationException(violations);
+                }
+        }
 
         /**
          * POST /admin/events
@@ -71,6 +86,7 @@ public class AdminEventController {
                         @Parameter(description = "Event Title") @RequestParam("title") String title,
                         @Parameter(description = "Speaker Name") @RequestParam("speaker") String speaker,
                         @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam("date") String date,
+                        @Parameter(description = "Event End (ISO-8601, e.g. 2025-02-15T20:00:00), must be after date") @RequestParam(value = "endDate", required = false) String endDate,
                         @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
                         @Parameter(description = "Event Description") @RequestParam("description") String description,
                         @Parameter(description = "Event Venue") @RequestParam("venue") String venue,
@@ -84,11 +100,13 @@ public class AdminEventController {
                                 .title(title)
                                 .speaker(speaker)
                                 .date(date)
+                                .endDate(endDate)
                                 .link(link)
                                 .description(description)
                                 .venue(venue)
                                 .status(status)
                                 .build();
+                validate(request);
 
                 EventResponse eventResponse = eventService.createEvent(request, images,
                                 authRequestContainer.getAdminUser());
@@ -171,6 +189,7 @@ public class AdminEventController {
                         @Parameter(description = "Event Title") @RequestParam(value = "title", required = false) String title,
                         @Parameter(description = "Speaker Name") @RequestParam(value = "speaker", required = false) String speaker,
                         @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam(value = "date", required = false) String date,
+                        @Parameter(description = "Event End (ISO-8601, e.g. 2025-02-15T20:00:00). Omit to keep, send empty to clear") @RequestParam(value = "endDate", required = false) String endDate,
                         @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
                         @Parameter(description = "Event Description") @RequestParam(value = "description", required = false) String description,
                         @Parameter(description = "Event Venue") @RequestParam(value = "venue", required = false) String venue,
@@ -184,10 +203,12 @@ public class AdminEventController {
                 request.setTitle(title);
                 request.setSpeaker(speaker);
                 request.setDate(date);
+                request.setEndDate(endDate);
                 request.setLink(link);
                 request.setDescription(description);
                 request.setVenue(venue);
                 request.setStatus(status);
+                validate(request);
 
                 String ipAddress = httpRequest.getRemoteAddr();
                 String userAgent = httpRequest.getHeader("User-Agent");

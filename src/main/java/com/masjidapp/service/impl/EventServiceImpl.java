@@ -49,6 +49,8 @@ public class EventServiceImpl implements EventService {
                 request.getTitle(), request.getSpeaker(), createdBy.getEmail());
 
         LocalDateTime eventDate = parseDate(request.getDate());
+        LocalDateTime eventEndDate = StringUtils.hasText(request.getEndDate()) ? parseDate(request.getEndDate()) : null;
+        validateEndDate(eventDate, eventEndDate);
         EventStatus status = resolveStatus(request.getStatus());
 
         // Upload images to S3 and get URLs
@@ -58,6 +60,7 @@ public class EventServiceImpl implements EventService {
                 .title(request.getTitle())
                 .speaker(request.getSpeaker())
                 .date(eventDate)
+                .endDate(eventEndDate)
                 .link(request.getLink())
                 .images(imageUrls)
                 .description(request.getDescription())
@@ -119,6 +122,11 @@ public class EventServiceImpl implements EventService {
         if (StringUtils.hasText(request.getDate())) {
             event.setDate(parseDate(request.getDate()));
         }
+        // null = leave unchanged, empty = clear
+        if (request.getEndDate() != null) {
+            event.setEndDate(StringUtils.hasText(request.getEndDate()) ? parseDate(request.getEndDate()) : null);
+        }
+        validateEndDate(event.getDate(), event.getEndDate());
         if (StringUtils.hasText(request.getLink())) {
             event.setLink(request.getLink());
         }
@@ -377,6 +385,12 @@ public class EventServiceImpl implements EventService {
         }
     }
 
+    private void validateEndDate(LocalDateTime date, LocalDateTime endDate) {
+        if (endDate != null && !endDate.isAfter(date)) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+    }
+
     private EventStatus resolveStatus(String status) {
         if (!StringUtils.hasText(status)) {
             return EventStatus.draft;
@@ -400,6 +414,7 @@ public class EventServiceImpl implements EventService {
                 .title(event.getTitle())
                 .speaker(event.getSpeaker())
                 .date(event.getDate())
+                .endDate(event.getEndDate())
                 .link(event.getLink())
                 .images(event.getImages() != null ? new java.util.ArrayList<>(event.getImages())
                         : new java.util.ArrayList<>())

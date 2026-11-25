@@ -59,6 +59,12 @@ public interface PrayerTimeService {
     MemberPrayerTimeResponse getTodayPrayerTimes();
 
     /**
+     * Get prayer times for a specific date (YYYY-MM-DD).
+     * Includes nextPrayer when the requested date is today.
+     */
+    MemberPrayerTimeResponse getPrayerTimesByDate(String date);
+
+    /**
      * Get prayer times for the current week (Monday to Sunday)
      */
     List<MemberPrayerTimeResponse> getWeekPrayerTimes();

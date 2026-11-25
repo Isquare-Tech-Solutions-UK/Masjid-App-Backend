@@ -2,11 +2,14 @@ package com.masjidapp.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.masjidapp.config.RequestIdFilter;
+import jakarta.validation.ConstraintViolationException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,7 +25,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import java.util.TreeMap;
 
 @RestControllerAdvice
 @Slf4j
@@ -47,6 +50,51 @@ public class GlobalExceptionHandler {
                                                 .code("VALIDATION_ERROR")
                                                 .message("Validation failed")
                                                 .details(errors)
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.badRequest().body(response);
+        }
+
+        /**
+         * Handle validation of DTOs checked programmatically (e.g. multipart event
+         * forms). The message lists every problem so the UI can show it as-is.
+         */
+        @ExceptionHandler(ConstraintViolationException.class)
+        public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+                Map<String, String> errors = new TreeMap<>();
+                ex.getConstraintViolations().forEach(violation ->
+                                errors.merge(violation.getPropertyPath().toString(), violation.getMessage(),
+                                                (first, second) -> first + "; " + second));
+
+                log.warn("Validation error: {}", errors);
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("VALIDATION_ERROR")
+                                                .message(String.join(". ", errors.values()))
+                                                .details(errors)
+                                                .build())
+                                .meta(Meta.now())
+                                .build();
+
+                return ResponseEntity.badRequest().body(response);
+        }
+
+        /**
+         * Handle database constraint failures (value too long, null in a required
+         * column, duplicate key, ...). The raw database message is logged but never
+         * returned, since it exposes schema details and means nothing to users.
+         */
+        @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+                log.error("Data integrity violation: {}", ex.getMostSpecificCause().getMessage(), ex);
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .error(ErrorDetails.builder()
+                                                .code("INVALID_DATA")
+                                                .message("Some of the information could not be saved. Please check that each field is filled in correctly and is not too long, then try again.")
                                                 .build())
                                 .meta(Meta.now())
                                 .build();
@@ -252,7 +300,7 @@ public class GlobalExceptionHandler {
                 public static Meta now() {
                         return Meta.builder()
                                         .timestamp(Instant.now().toString())
-                                        .requestId("req_" + UUID.randomUUID().toString().substring(0, 8))
+                                        .requestId(RequestIdFilter.currentRequestId())
                                         .build();
                 }
         }

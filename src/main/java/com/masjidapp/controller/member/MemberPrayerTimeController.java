@@ -61,6 +61,40 @@ public class MemberPrayerTimeController {
     }
 
     /**
+     * GET /member/prayer-times/date?date=YYYY-MM-DD
+     * Returns prayer times for a specific date.
+     */
+    @Operation(
+            summary = "Get Prayer Times For A Specific Date",
+            description = "Returns prayer times for the given date (YYYY-MM-DD). "
+                    + "The nextPrayer field is included only when the requested date is today.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Prayer times retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "Missing or invalid date parameter",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "Invalid or missing API key",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "Prayer times not found for the given date",
+                    content = @Content(schema = @Schema(
+                            implementation = com.masjidapp.exception.GlobalExceptionHandler.ErrorResponse.class)))
+    })
+    @GetMapping("/date")
+    public ResponseEntity<ApiResponse<MemberPrayerTimeResponse>> getPrayerTimesByDate(
+            @Parameter(description = "Date in YYYY-MM-DD format", required = true, example = "2026-08-13")
+            @RequestParam String date) {
+
+        log.info("Fetching prayer times for date: {}", date);
+        MemberPrayerTimeResponse response = prayerTimeService.getPrayerTimesByDate(date);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
      * GET /member/prayer-times/week
      * Returns prayer times for the current week (Monday to Sunday).
      */

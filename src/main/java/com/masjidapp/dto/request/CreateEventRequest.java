@@ -32,10 +32,17 @@ public class CreateEventRequest {
     @NotBlank(message = "Date is required")
     private String date;
 
+    /**
+     * Optional event end as ISO-8601 datetime string, e.g. 2025-02-15T20:00:00.
+     * Must be after {@code date} when provided.
+     */
+    private String endDate;
+
     @Size(max = 500, message = "Link must not exceed 500 characters")
     private String link;
 
     @NotBlank(message = "Description is required")
+    @Size(max = 5000, message = "Description must be at most 5000 characters")
     private String description;
 
     @NotBlank(message = "Venue is required")

@@ -1,0 +1,105 @@
+// Grafana Alloy — collects logs from EVERY container on the Docker host.
+//
+// Discovery is via the Docker socket, so containers are picked up
+// automatically as they start. Nothing needs to be registered per service,
+// and this covers both compose projects (masjid-app and masjid-frontend).
+//
+// Note: Promtail is deprecated (EOL March 2026) — Alloy replaces it.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "10s"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // Docker reports names as "/masjid-backend" — strip the leading slash.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  // stdout vs stderr
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.containers.output
+  refresh_interval = "10s"
+  forward_to       = [loki.process.parse.receiver]
+}
+
+loki.process "parse" {
+  // The backend emits structured JSON (logging.structured.format.console
+  // in application.yml). Everything else — nginx, Postgres, MinIO, Next.js —
+  // is plain text and passes through untouched.
+  stage.match {
+    selector = "{container=~\"masjid-backend.*\"}"
+
+    stage.json {
+      expressions = {
+        level = "level",
+      }
+    }
+
+    // Only `level` is promoted to an index label. logger_name, thread_name,
+    // requestId and the rest stay in the line body and are queryable at read
+    // time with `| json` — promoting them would blow up label cardinality.
+    stage.labels {
+      values = {
+        level = "",
+      }
+    }
+  }
+
+  // nginx access logs are JSON too (log_format json_combined in app.conf).
+  // Its error_log is plain text and simply falls through unparsed.
+  stage.match {
+    selector = "{container=~\"masjid-nginx.*\"}"
+
+    stage.json {
+      expressions = {
+        status = "status",
+      }
+    }
+
+    stage.labels {
+      values = {
+        status = "",
+      }
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://masjid-loki:3100/loki/api/v1/push"
+  }
+
+  external_labels = {
+    host = "masjid-vps",
+  }
+}

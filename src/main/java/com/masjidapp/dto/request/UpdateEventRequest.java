@@ -29,9 +29,16 @@ public class UpdateEventRequest {
      */
     private String date;
 
+    /**
+     * Event end as ISO-8601 datetime string, e.g. 2025-02-15T20:00:00.
+     * Unlike other fields, null leaves it unchanged and an empty string clears it.
+     */
+    private String endDate;
+
     @Size(max = 500, message = "Link must not exceed 500 characters")
     private String link;
 
+    @Size(max = 5000, message = "Description must be at most 5000 characters")
     private String description;
 
     @Size(max = 255, message = "Venue must not exceed 255 characters")
