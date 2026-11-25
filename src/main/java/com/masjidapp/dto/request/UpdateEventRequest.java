@@ -38,6 +38,7 @@ public class UpdateEventRequest {
     @Size(max = 500, message = "Link must not exceed 500 characters")
     private String link;
 
+    @Size(max = 5000, message = "Description must be at most 5000 characters")
     private String description;
 
     @Size(max = 255, message = "Venue must not exceed 255 characters")

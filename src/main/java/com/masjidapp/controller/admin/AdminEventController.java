@@ -13,7 +13,10 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -55,6 +58,18 @@ public class AdminEventController {
 
         private final EventService eventService;
         private final AuthRequestContainer authRequestContainer;
+        private final Validator validator;
+
+        /**
+         * The event DTOs are built by hand from multipart params, so Spring never
+         * runs their constraints. Validate explicitly; violations become a 400.
+         */
+        private <T> void validate(T request) {
+                java.util.Set<ConstraintViolation<T>> violations = validator.validate(request);
+                if (!violations.isEmpty()) {
+                        throw new ConstraintViolationException(violations);
+                }
+        }
 
         /**
          * POST /admin/events
@@ -91,6 +106,7 @@ public class AdminEventController {
                                 .venue(venue)
                                 .status(status)
                                 .build();
+                validate(request);
 
                 EventResponse eventResponse = eventService.createEvent(request, images,
                                 authRequestContainer.getAdminUser());
@@ -192,6 +208,7 @@ public class AdminEventController {
                 request.setDescription(description);
                 request.setVenue(venue);
                 request.setStatus(status);
+                validate(request);
 
                 String ipAddress = httpRequest.getRemoteAddr();
                 String userAgent = httpRequest.getHeader("User-Agent");
