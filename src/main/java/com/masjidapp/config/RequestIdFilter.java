@@ -36,6 +36,16 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
     public static final String REQUEST_ID_MDC_KEY = "requestId";
 
+    /**
+     * The id of the request being handled on this thread, i.e. the same value
+     * that is logged and returned in the {@code X-Request-Id} header. Falls back
+     * to a fresh id outside a request (e.g. scheduled jobs).
+     */
+    public static String currentRequestId() {
+        String requestId = MDC.get(REQUEST_ID_MDC_KEY);
+        return StringUtils.hasText(requestId) ? requestId : UUID.randomUUID().toString();
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

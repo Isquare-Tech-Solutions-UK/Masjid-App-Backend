@@ -1,13 +1,13 @@
 package com.masjidapp.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.masjidapp.config.RequestIdFilter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Standard API response wrapper matching OpenAPI specification.
@@ -57,7 +57,7 @@ public class ApiResponse<T> {
         public static Meta now() {
             return Meta.builder()
                     .timestamp(Instant.now().toString())
-                    .requestId("req_" + UUID.randomUUID().toString().substring(0, 8))
+                    .requestId(RequestIdFilter.currentRequestId())
                     .build();
         }
     }

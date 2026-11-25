@@ -42,6 +42,7 @@ public class CreateEventRequest {
     private String link;
 
     @NotBlank(message = "Description is required")
+    @Size(max = 5000, message = "Description must be at most 5000 characters")
     private String description;
 
     @NotBlank(message = "Venue is required")

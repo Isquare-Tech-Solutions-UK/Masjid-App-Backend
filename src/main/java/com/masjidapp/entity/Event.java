@@ -68,7 +68,7 @@ public class Event {
     @Builder.Default
     private List<String> images = new ArrayList<>();
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "text")
     private String description;
 
     @Column(nullable = false, length = 255)
