@@ -71,6 +71,7 @@ public class AdminEventController {
                         @Parameter(description = "Event Title") @RequestParam("title") String title,
                         @Parameter(description = "Speaker Name") @RequestParam("speaker") String speaker,
                         @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam("date") String date,
+                        @Parameter(description = "Event End (ISO-8601, e.g. 2025-02-15T20:00:00), must be after date") @RequestParam(value = "endDate", required = false) String endDate,
                         @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
                         @Parameter(description = "Event Description") @RequestParam("description") String description,
                         @Parameter(description = "Event Venue") @RequestParam("venue") String venue,
@@ -84,6 +85,7 @@ public class AdminEventController {
                                 .title(title)
                                 .speaker(speaker)
                                 .date(date)
+                                .endDate(endDate)
                                 .link(link)
                                 .description(description)
                                 .venue(venue)
@@ -171,6 +173,7 @@ public class AdminEventController {
                         @Parameter(description = "Event Title") @RequestParam(value = "title", required = false) String title,
                         @Parameter(description = "Speaker Name") @RequestParam(value = "speaker", required = false) String speaker,
                         @Parameter(description = "Event Date (ISO-8601, e.g. 2025-02-15T18:00:00)") @RequestParam(value = "date", required = false) String date,
+                        @Parameter(description = "Event End (ISO-8601, e.g. 2025-02-15T20:00:00). Omit to keep, send empty to clear") @RequestParam(value = "endDate", required = false) String endDate,
                         @Parameter(description = "Event/Registration Link") @RequestParam(value = "link", required = false) String link,
                         @Parameter(description = "Event Description") @RequestParam(value = "description", required = false) String description,
                         @Parameter(description = "Event Venue") @RequestParam(value = "venue", required = false) String venue,
@@ -184,6 +187,7 @@ public class AdminEventController {
                 request.setTitle(title);
                 request.setSpeaker(speaker);
                 request.setDate(date);
+                request.setEndDate(endDate);
                 request.setLink(link);
                 request.setDescription(description);
                 request.setVenue(venue);
