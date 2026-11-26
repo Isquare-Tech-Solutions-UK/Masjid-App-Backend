@@ -1,0 +1,24 @@
+name: Clean up old images
+
+# Keeps the 30 most recent masjidguide-backend image versions in GHCR and
+# deletes older ones. Make sure no stack is still pinned to a version older
+# than the 30 most recent releases.
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # Sundays 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old image versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: masjidguide-backend
+          package-type: container
+          min-versions-to-keep: 30

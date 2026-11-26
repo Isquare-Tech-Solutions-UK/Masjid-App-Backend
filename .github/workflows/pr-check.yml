@@ -1,0 +1,68 @@
+name: PR check
+
+# Builds every pull request so a change that does not compile, or a broken
+# Dockerfile, is caught before it is merged and released.
+# There are no tests in src/test yet; switch `package` to `verify` once there are.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Build
+        run: mvn -B -DskipTests package
+
+  # Builds the release image (without pushing) so a broken Dockerfile is caught
+  # on the PR rather than when someone runs release.yml.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          provenance: false
+          tags: masjidguide-backend:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The stacks' healthcheck uses curl and the entrypoint needs infisical;
+      # wget is kept for healthchecks written with it.
+      - name: Check image contents
+        run: |
+          docker run --rm --entrypoint sh masjidguide-backend:pr-check -c '
+            set -e
+            curl --version | head -n1
+            wget --version | head -n1
+            infisical --version
+            test -f /app/app.jar && echo "app.jar present"
+            test -x /entrypoint.sh && echo "entrypoint executable"
+            id
+          '

@@ -4,6 +4,7 @@ import com.masjidapp.security.JwtAuthenticationFilter;
 import com.masjidapp.security.MemberApiKeyFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -24,6 +25,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -111,18 +113,18 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${cors.allowed-origins}") String allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
-        // The API now lives on its own subdomain, so calls from the frontend are
-        // cross-origin and CORS actually applies — previously they were
-        // same-origin (/api/ on the same host) and this list was never
-        // exercised in production.
-        configuration.setAllowedOriginPatterns(List.of(
-                "https://masjid-app.isquaretechsolutions.com",
-                "http://localhost:3000",
-                "https://masjid-app.vercel.app",
-                "https://*.vercel.app" // Allows Vercel preview deployments
-        ));
+        // The API lives on its own subdomain for masjid-app, so calls from that
+        // frontend are cross-origin and CORS applies. The list is set per stack
+        // with CORS_ALLOWED_ORIGINS (comma-separated, wildcard patterns such as
+        // https://*.vercel.app allowed); the default in application.yml is the
+        // list that used to be hardcoded here.
+        configuration.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         // Allowed headers cover the inbound direction; this makes the id the

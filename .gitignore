@@ -24,6 +24,9 @@ logs/
 .env.local
 *.env
 
+# Local Spring config with laptop-only secrets (see application-local.yml.example)
+src/main/resources/application-local.yml
+
 # Encryption keys — never commit these
 src/main/resources/secret.key
 src/main/resources/raw.key
