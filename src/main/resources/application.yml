@@ -10,10 +10,13 @@ spring:
       file-size-threshold: 2KB
 
   # Database Configuration
+  #
+  # url, username and password are deliberately not set here: a missing value
+  # must stop the app at startup ("'url' attribute is not specified") rather
+  # than silently connect with a known password. Spring binds them from
+  # SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD (Infisical or the compose
+  # stack), or from application-local.yml for local development.
   datasource:
-    url: jdbc:postgresql://localhost:5432/masjid_app
-    username: ${DB_USERNAME:syedfardeen}
-    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   # JPA Configuration
@@ -49,8 +52,10 @@ server:
     context-path: /api/v1
 
 # JWT Configuration
+#
+# Required, no default. JwtConfig refuses to start if JWT_SECRET is missing.
 jwt:
-  secret: ${JWT_SECRET:Q2bI0hIuSeXGDTO1SaWmp6Scw1VaH/3zp0bxImJD85M=}
+  secret: ${JWT_SECRET:}
   access-token-expiration: 1800000  # 30 minutes in milliseconds
   refresh-token-expiration: 604800000  # 7 days in milliseconds
 
@@ -77,12 +82,15 @@ logging:
 minio:
   # Used by the MinIO SDK client for upload/download operations (may be a
   # Docker-internal or otherwise backend-only reachable address).
-  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  # Required, no default.
+  endpoint: ${MINIO_ENDPOINT}
   # Used only to build the object URLs returned to clients (must be reachable
   # from the browser/frontend). Falls back to minio.endpoint if not set.
-  public-url: ${MINIO_PUBLIC_URL:${MINIO_ENDPOINT:http://localhost:9000}}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  public-url: ${MINIO_PUBLIC_URL:${MINIO_ENDPOINT}}
+  # Required, no default: a missing key must fail at startup, not fall back
+  # to MinIO's well-known minioadmin/minioadmin.
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
   bucket: ${MINIO_BUCKET:masjid-app}
   secure: ${MINIO_SECURE:false}
 
@@ -102,18 +110,20 @@ app:
     fee-fixed: ${STRIPE_FEE_FIXED:0.20}
   encryption:
     # Base64-encoded 256-bit AES key used to encrypt the charity's Stripe secret key
-    # and webhook signing secret at rest. MUST be overridden per environment and MUST
-    # NOT be reused across environments. The default below is DEV-ONLY — never use it
-    # in production; supply ENCRYPTION_MASTER_KEY from a secrets manager instead.
-    master-key: ${ENCRYPTION_MASTER_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+    # and webhook signing secret at rest. Required, no default: it MUST be set per
+    # environment from a secrets manager and MUST NOT be reused across environments.
+    master-key: ${ENCRYPTION_MASTER_KEY}
 
 member:
   api:
-    key: ${MEMBER_API_KEY:d4f8a1b2-7e3c-4f9a-b5d6-1a2b3c4d5e6f}
+    # Required, no default.
+    key: ${MEMBER_API_KEY}
 
+# Origins allowed to call the API cross-origin (comma-separated, wildcard
+# patterns allowed). The masjidguide tenants call /api same-origin and do not
+# need an entry. The default is the list in use before this was configurable.
 cors:
-  allowed-origins: http://localhost:3000,https://masjid-app-frontend.vercel.app,https://masjid-app.vercel.app
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://masjid-app.isquaretechsolutions.com,http://localhost:3000,https://masjid-app.vercel.app,https://*.vercel.app}
 
 springdoc:
   swagger-ui:

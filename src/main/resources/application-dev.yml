@@ -1,0 +1,9 @@
+# Dev environment (SPRING_PROFILES_ACTIVE=dev).
+#
+# Non-secret differences from application.yml only. Secrets and URLs come
+# from Infisical. LOG_LEVEL_* set on the stack or in Infisical still win over
+# the defaults below.
+
+logging:
+  level:
+    com.masjidapp: ${LOG_LEVEL_APP:DEBUG}

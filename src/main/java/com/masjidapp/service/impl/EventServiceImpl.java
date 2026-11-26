@@ -19,6 +19,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,8 +55,12 @@ public class EventServiceImpl implements EventService {
         validateEndDate(eventDate, eventEndDate);
         EventStatus status = resolveStatus(request.getStatus());
 
-        // Upload images to S3 and get URLs
+        // Upload images, then make sure they are removed again if the event is
+        // not actually persisted (save or commit failure), so no file is orphaned.
         List<String> imageUrls = s3Service.uploadEventImages(images);
+        runAfterTransaction(
+                null,
+                () -> deleteImagesQuietly(imageUrls, "rollback of event create"));
 
         Event event = Event.builder()
                 .title(request.getTitle())
@@ -158,17 +164,26 @@ public class EventServiceImpl implements EventService {
             event.setStatus(requestedStatus);
         }
 
-        // 5. Handle image replacement (delete old → upload new)
+        // 5. Handle image replacement (upload new → save → delete old only on commit).
+        // Old images must survive any failure, because a rolled-back event still
+        // points at them; new uploads are removed again if the change is not committed.
         boolean hasNewImages = newImages != null && !newImages.isEmpty();
         if (hasNewImages) {
-            List<String> oldImages = event.getImages();
-            if (oldImages != null && !oldImages.isEmpty()) {
-                log.info("Deleting {} old image(s) from S3 for eventId={}", oldImages.size(), eventId);
-                s3Service.deleteEventImages(oldImages);
-            }
             List<String> uploadedUrls = s3Service.uploadEventImages(newImages);
-            event.setImages(uploadedUrls);
-            log.info("Uploaded {} new image(s) for eventId={}", uploadedUrls.size(), eventId);
+            if (uploadedUrls.isEmpty()) {
+                // Only empty parts were sent: treat as "image unchanged".
+                log.debug("No non-empty images uploaded; keeping existing images. eventId={}", eventId);
+            } else {
+                List<String> oldImages = event.getImages() == null
+                        ? List.of()
+                        : List.copyOf(event.getImages());
+                runAfterTransaction(
+                        () -> deleteImagesQuietly(oldImages, "replaced on event update " + eventId),
+                        () -> deleteImagesQuietly(uploadedUrls, "rollback of event update " + eventId));
+                event.setImages(uploadedUrls);
+                log.info("Uploaded {} new image(s) for eventId={}; {} old image(s) will be deleted after commit",
+                        uploadedUrls.size(), eventId, oldImages.size());
+            }
         }
 
         // 6. Save the updated event
@@ -374,6 +389,59 @@ public class EventServiceImpl implements EventService {
 
         log.info("Event notification sent via topic. id={}", eventId);
         return 1;
+    }
+
+    /**
+     * Runs storage clean-up once the surrounding transaction has finished.
+     * <p>
+     * This must hook the real outcome rather than wrap {@code save()} in a
+     * try/catch: the SQL is usually only flushed at commit, after the service
+     * method has returned, so a failing INSERT/UPDATE never reaches a catch
+     * block inside the method.
+     *
+     * @param onCommit   run if the transaction committed (may be null)
+     * @param onRollback run if it rolled back or ended in an unknown state (may be null)
+     */
+    private void runAfterTransaction(Runnable onCommit, Runnable onRollback) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            // Not expected (callers are @Transactional), but never leave files
+            // orphaned or prematurely deleted because of it: the caller has
+            // nothing left to roll back, so treat reaching here as committed.
+            log.warn("No active transaction synchronization; running commit clean-up immediately");
+            if (onCommit != null) {
+                onCommit.run();
+            }
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                Runnable action = status == STATUS_COMMITTED ? onCommit : onRollback;
+                if (action != null) {
+                    action.run();
+                }
+            }
+        });
+    }
+
+    /**
+     * Best-effort delete used for clean-up after a transaction outcome. A failure
+     * here must not turn a successful save into an error (or mask the original
+     * error on rollback), so it is logged instead of thrown.
+     */
+    private void deleteImagesQuietly(List<String> imageUrls, String reason) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return;
+        }
+        for (String url : imageUrls) {
+            try {
+                s3Service.deleteEventImages(List.of(url));
+            } catch (Exception ex) {
+                log.error("Image clean-up failed; file may be orphaned. reason={}, url={}, error={}",
+                        reason, url, ex.getMessage(), ex);
+            }
+        }
+        log.info("Image clean-up done. reason={}, count={}", reason, imageUrls.size());
     }
 
     private LocalDateTime parseDate(String date) {
