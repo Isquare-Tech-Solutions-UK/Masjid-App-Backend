@@ -107,6 +107,10 @@ public class S3ServiceImpl implements S3Service {
                 log.error("MinIO Upload Failed: key={}, error={}",
                         key, ex.getMessage(), ex);
 
+                // The caller never receives the URLs of files already uploaded in
+                // this call, so remove them here or they would be orphaned.
+                removeQuietly(uploadedUrls);
+
                 throw new RuntimeException("Failed to upload image to MinIO", ex);
             }
         }
@@ -166,6 +170,19 @@ public class S3ServiceImpl implements S3Service {
         }
 
         log.info("MinIO Delete Completed: totalDeleted={}", imageUrls.size());
+    }
+
+    /**
+     * Best-effort removal of files uploaded earlier in a failed batch.
+     */
+    private void removeQuietly(List<String> urls) {
+        for (String url : urls) {
+            try {
+                deleteEventImages(List.of(url));
+            } catch (Exception cleanupEx) {
+                log.error("MinIO Cleanup Failed after partial upload; file may be orphaned. url={}", url, cleanupEx);
+            }
+        }
     }
 
     /**
