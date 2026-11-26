@@ -3,6 +3,10 @@ name: Clean up old images
 # Keeps the 30 most recent masjidguide-backend image versions in GHCR and
 # deletes older ones. Make sure no stack is still pinned to a version older
 # than the 30 most recent releases.
+#
+# Every :dev push (dev-build.yml) leaves the previous dev build as an untagged
+# version. Those are deleted first, so they never push real releases out of
+# the "keep 30" window.
 
 on:
   schedule:
@@ -16,6 +20,14 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
+      - name: Delete old untagged dev builds
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: masjidguide-backend
+          package-type: container
+          delete-only-untagged-versions: "true"
+          min-versions-to-keep: 0
+
       - name: Delete old image versions
         uses: actions/delete-package-versions@v5
         with:
