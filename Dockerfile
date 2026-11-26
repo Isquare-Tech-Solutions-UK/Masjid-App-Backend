@@ -1,6 +1,6 @@
 # One image for every environment. Nothing environment-specific is baked in:
-# secrets come from Infisical at container start (see entrypoint.sh) or, for
-# the legacy masjid-app compose stack, as plain environment variables. The
+# secrets come from Infisical at container start (see entrypoint.sh) or, when
+# no Infisical credentials are given, as plain environment variables. The
 # Spring profile comes from SPRING_PROFILES_ACTIVE on each stack.
 
 # ---- Build stage ------------------------------------------------------------
@@ -19,8 +19,8 @@ RUN mvn -B -DskipTests package \
 FROM eclipse-temurin:21-jre
 
 # curl: healthcheck of the new Portainer stacks.
-# wget: healthcheck of the legacy masjid-app compose stack. Keep both until
-#       that stack is retired, or masjid-backend goes unhealthy after a deploy.
+# wget: kept for healthchecks written with wget (the retired masjid-app
+#       stack used one); safe to drop once no stack relies on it.
 # infisical: fetches secrets at startup. Installed from Infisical's signed apt
 #       repository (https://artifacts-cli.infisical.com) rather than by piping
 #       their setup script into a shell.

@@ -1,7 +1,7 @@
 name: PR check
 
-# Builds every pull request so a change that does not compile is caught before
-# it reaches dev, where masjid-app-build-deploy.yaml would deploy it.
+# Builds every pull request so a change that does not compile, or a broken
+# Dockerfile, is caught before it is merged and released.
 # There are no tests in src/test yet; switch `package` to `verify` once there are.
 
 on:
@@ -53,8 +53,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Both healthchecks (curl for the Portainer stacks, wget for the legacy
-      # compose stack) and the entrypoint depend on these being in the image.
+      # The stacks' healthcheck uses curl and the entrypoint needs infisical;
+      # wget is kept for healthchecks written with it.
       - name: Check image contents
         run: |
           docker run --rm --entrypoint sh masjidguide-backend:pr-check -c '

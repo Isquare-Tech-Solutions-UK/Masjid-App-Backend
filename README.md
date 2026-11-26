@@ -48,8 +48,8 @@ does one of two things:
   identity and runs the app with the secrets injected. It also needs
   `INFISICAL_CLIENT_SECRET`, `INFISICAL_URL`, `INFISICAL_PROJECT_ID` and
   `INFISICAL_ENV`, and optionally `INFISICAL_PATH` (default `/`).
-- Without it, it runs the app with the container's environment as-is (the
-  legacy `docker-compose.yml` stack works this way).
+- Without it, it runs the app with the container's environment as-is (handy
+  for `docker run -e ...` locally).
 
 ## CI/CD
 
@@ -58,5 +58,5 @@ does one of two things:
   `backend-v<version>` and pushes
   `ghcr.io/isquare-tech-solutions-uk/masjidguide-backend:<version>`.
 - `cleanup.yml` keeps the 30 most recent image versions in GHCR.
-- `masjid-app-build-deploy.yaml` is the legacy deploy for the masjid-app stack.
-  It still builds and redeploys on every push to `dev` or `main`.
+- Nothing deploys on push. Servers run a released version, chosen per stack
+  in Portainer.

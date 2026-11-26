@@ -9,7 +9,7 @@
 #    logs in with the machine identity and starts the app with the secrets
 #    injected as environment variables.
 #
-# 2. Plain environment (legacy masjid-app compose stack): leave
+# 2. Plain environment (e.g. `docker run -e ...` locally): leave
 #    INFISICAL_CLIENT_ID unset and pass the secrets as environment variables
 #    directly. The app starts as-is.
 set -e
