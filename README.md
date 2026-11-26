@@ -54,9 +54,18 @@ does one of two things:
 ## CI/CD
 
 - `pr-check.yml` builds every pull request.
-- `release.yml` (run by hand with a `version` such as `1.4.0`) tags the commit
-  `backend-v<version>` and pushes
+- `dev-build.yml` builds every merge to `dev` and pushes
+  `ghcr.io/isquare-tech-solutions-uk/masjidguide-backend:dev`.
+- `release.yml` (run by hand from `dev` or `main` with a `version` such as
+  `1.4.0`) tags the commit `backend-v<version>` and pushes
   `ghcr.io/isquare-tech-solutions-uk/masjidguide-backend:<version>`.
-- `cleanup.yml` keeps the 30 most recent image versions in GHCR.
-- Nothing deploys on push. Servers run a released version, chosen per stack
-  in Portainer.
+- `cleanup.yml` (weekly) deletes old untagged dev builds, then keeps the 30
+  most recent image versions in GHCR.
+- Nothing deploys on push. The dev stack runs `:dev`; masjid stacks run a
+  released version, chosen per stack in Portainer.
+
+### Testing on dev
+
+Merge to `dev`, wait for the **Dev build** workflow to go green, then in
+Portainer open `masjid-guide-dev` and **Update the stack** with
+**Re-pull image** on.
