@@ -1,7 +1,8 @@
 name: Release
 
-# Run by hand: Actions > Release > Run workflow, pick the branch, enter a
-# version such as 1.4.0. It tags the commit backend-v<version> and publishes
+# Run by hand: Actions > Release > Run workflow, pick dev or main (any other
+# branch is refused), enter a version such as 1.4.0. It tags the commit
+# backend-v<version> and publishes
 # ghcr.io/isquare-tech-solutions-uk/masjidguide-backend:<version>.
 #
 # Publishing an image deploys nothing. Each Portainer stack picks a version
@@ -19,9 +20,11 @@ permissions:
   contents: write   # push the release tag
   packages: write   # push the image to GHCR
 
-# Two runs for the same version must not race each other to the tag.
+# One release at a time per repository, so two runs never race each other to
+# a tag or interleave image pushes. A run started while another is going waits;
+# GitHub keeps only one waiting run, so starting a third cancels the waiting one.
 concurrency:
-  group: release-${{ inputs.version }}
+  group: release
   cancel-in-progress: false
 
 env:
@@ -36,6 +39,14 @@ jobs:
       VERSION: ${{ inputs.version }}
       TAG: backend-v${{ inputs.version }}
     steps:
+      # Release only reviewed code: dev and main receive changes through PRs.
+      - name: Allow releases only from dev or main
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/dev|refs/heads/main) ;;
+            *) echo "::error::Releases run only from dev or main, not $GITHUB_REF"; exit 1 ;;
+          esac
+
       - name: Validate version
         run: |
           if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
