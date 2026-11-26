@@ -1,0 +1,37 @@
+# Local development settings.
+#
+#   cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
+#   SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+#
+# application-local.yml is gitignored. These values are for a laptop only:
+# never reuse them in a shared or deployed environment.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/masjid_app
+    username: postgres
+    password: postgres
+
+jwt:
+  # Any base64 string of at least 32 bytes. Generate one with: openssl rand -base64 32
+  secret: REPLACE_WITH_openssl_rand_base64_32
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+
+app:
+  encryption:
+    # Base64 of 32 random bytes. Generate one with: openssl rand -base64 32
+    master-key: REPLACE_WITH_openssl_rand_base64_32
+
+member:
+  api:
+    key: local-member-api-key
+
+logging:
+  structured:
+    format:
+      # Human-readable logs locally instead of JSON.
+      console: ""
